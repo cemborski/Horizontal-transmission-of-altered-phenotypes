@@ -1,11 +1,4 @@
 # Horizontal transmission of altered phenotypes across generations
 
-Title:
-
-Background:
-
-Methods:
-
-Results:
-
-Conclusion:
+Abstract:
+Ancestral exposures can influence phenotypic expression in subsequent generations, yet how this occurs remains unclear. To date, studies analyzing intergenerational and transgenerational effects across generations has focused almost exclusively on vertical transmission. Yet, the role that horizontally transmitted factors, including the host-associated microbiome, plays in cross-generational plasticity has been largely overlooked. In the current study, we begin to address this gap by testing whether horizontally transmitted factors can alter phenotypes in subsequent generations, and if bacterial communities may influence this transmission. Specifically, we hypothesized that parental diet can horizontally alter offspring phenotypes, which can have longer lasting transgenerational effects. Additionally, we hypothesized that antibiotics reduce horizontally transmitted phenotypic effects, and that altered bacterial community composition can be horizontally transmitted. To test this, Drosophila melanogaster were exposed to one of four experimental treatments (i.e. no or control sugar diets containing antibiotics or no antibiotics) from oviposition until horizontal transmission at five days post-eclosion. These flies were then used to inoculate control media for 24 hours. Axenic (i.e. germ free) eggs were created, transferred to the inoculate media, and left to develop undisturbed until eclosion. The resulting inoculated flies were then used for body composition (i.e. whole-body sugar and fat) analysis, 16s rRNA (bacterial) DNA sequencing, and mating of the F2 and subsequent F3 generations. We observed phenotypic triglyceride effects in flies deriving from non-antibiotic, but not antibiotic, no-sugar treatment relative to controls in all three generations analyzed. Additionally, we observed a significant treatment effects in bacterial community composition during horizontal transmission. Taken together, this work suggests that transmission of altered phenotypes across generations can be horizontally (and likely microbially) influenced. 

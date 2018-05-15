@@ -1,4 +1,4 @@
-# Microbial-Influence-On-Transgenerational-Plasticity
+# Horizontal transmission of altered phenotypes across generations
 
 Title:
 

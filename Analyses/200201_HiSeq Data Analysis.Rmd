@@ -1,12 +1,12 @@
 ---
-title: "200128_HiSeq Data Analysis"
+title: "200204_HiSeq Data Analysis"
 author: "Carmen Emborski"
-date: "1/28/2020"
+date: "2/04/2020"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include=FALSE, cache = F}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
 library(knitr)
 library(kableExtra)
 library(gridExtra)
@@ -28,13 +28,13 @@ library(devtools)
 theme_set(theme_minimal() + theme(legend.position = "bottom", axis.title =  element_text(size = 20), axis.text =  element_text(size = 10), strip.text = element_text(size = 20)) + theme_bw())
 ```
 
-##Import Files
-1) metadata file (provides 16s sample details (i.e. treatment, generations)) 
-2) feature table (this is the sequencing output file after qiime processing)
-3) taxonomy file (gives taxanomic names to unique amplicon sequence variants)
+##Import Files  
+1) metadata file (provides 16s sample details (i.e. treatment, generations))  
+2) feature table (this is the sequencing output file after qiime processing)  
+3) taxonomy file (gives taxanomic names to unique amplicon sequence variants)  
 4) tree (helps construct the phylogenetic tree)
 ```{r}
-taxonomy<- read.delim("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/16s%20rRNA%20HiSeq%20Analysis/Taxonomy.tsv")
+taxonomy<- read.delim("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/16s%20rRNA%20HiSeq%20Analysis/Taxonomy.tsv") 
 names(taxonomy) <- c("row", "tax", "Confidence")
 row.names(taxonomy) <-taxonomy[[1]]
 taxonomy <- taxonomy[,(-1)]
@@ -60,12 +60,14 @@ fmat <- as.matrix(Svtab)
 OTU = otu_table(fmat, taxa_are_rows = TRUE)
 
 #create phyloseq object
-ps <- phyloseq(OTU, TAX, META, TREE)
+ps <- phyloseq(OTU, TAX, META, TREE) 
 ```
-
+  
+  
 ##Visualize Raw Data:
 Generate a prevelance table (number of samples each taxa occurs in) for each taxa.
 ```{r Prevalence Plot Unfiltered}
+ps <- subset_samples(ps, Treatment != "HSD")
 ps
 
 prevelancedf = apply(X = otu_table(ps),
@@ -81,7 +83,8 @@ plyr::ddply(prevelancedf, "D1", function(df1){
   data.frame(mean_prevalence=mean(df1$Prevalence),total_abundance=sum(df1$TotalAbundance,na.rm = T),stringsAsFactors = F)
   })
 ```
-
+  
+  
 ##Preprocessing and Filtering:
 ###Prefilter 
 Remove ambiguous phyla (NA), keep only bacterial OTUs, and remove taxa with less than 1 read (singletons) and those that cannot be part of the microbiome
@@ -89,9 +92,11 @@ Remove ambiguous phyla (NA), keep only bacterial OTUs, and remove taxa with less
 ps0 = subset_taxa(ps, D0=="D_0__Bacteria")
 ps0 <- subset_taxa(ps0, D5!="NA") #remove NAs
 ps0 <- filter_taxa(ps0, function (x) {sum(x > 0) > 1}, prune=TRUE)
-ps0 = subset_taxa(ps0, !D1 %in% c(" D_1__Cyanobacteria"))
+ps0 = subset_taxa(ps0, !D1 %in% c("D_1__Cyanobacteria"))
 ps0
 ```
+  
+  
 Visualize Prefiltered Data
 ```{r Prefilter Results}
 #generate a prevelance table (number of samples each taxa occurs in) for each taxa using the following code:
@@ -113,7 +118,8 @@ plyr::ddply(prevdf, "D5", function(df1){
   data.frame(mean_prevalence=mean(df1$Prevalence),total_abundance=sum(df1$TotalAbundance,na.rm = T),stringsAsFactors = F)
   })
 ```
-
+  
+  
 ```{r Prefilter Plot}
 ###Plot 0% filtered data and visualize a 5%-20% threshold (Genus Level)
 FilterPlot0 <- ggplot(prevdf, aes(TotalAbundance, Prevalence / nsamples(ps0),color=D5)) +
@@ -126,17 +132,19 @@ FilterPlot0 <- ggplot(prevdf, aes(TotalAbundance, Prevalence / nsamples(ps0),col
   xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") +
   facet_wrap(~D1) + theme(legend.position="none")
 ggsave("GenusLevelFilterPlot0.pdf", FilterPlot0, width = 30, height = 30, units = "in")
+FilterPlot0
 ```
-
-
+  
+  
 ###Filtering
 Investigate low prevelance/abundance genera and subset them out.
 Define prevalence threshold
 ```{r Filtering}
-prevalenceThreshold = 0.15 * nsamples(ps0)
+prevalenceThreshold = 0.1 * nsamples(ps0)
 prevalenceThreshold
 ```
-
+  
+  
 Subset the remaining genera by prevalence
 ```{r Filtering and Subsetting by Prevalence}
 keepTaxa = rownames(prevdf)[(prevdf$Prevalence >= prevalenceThreshold)]
@@ -145,8 +153,7 @@ length(keepTaxa)
 psF = prune_taxa(keepTaxa, ps0)
 psF
 ```
-
-
+  
 Compositional Plot 
 ```{r Compositional Plot}
 psmeltF <- psmelt(psF)
@@ -157,12 +164,39 @@ psmeltF %>% filter(D5 %in% abundantClasses) %>% ggplot(aes_string(x = "Generatio
 
 ggsave("Filtered Data Barplot (Genus Level).pdf", height = 7, width = 12)
 ```
-
+  
+  
+Subset Data for Analyses:
 ```{r Subset Gut vs Media}
 psF.gut <- tax_glom(subset_samples(psF, SampleType=="Gut"), taxrank = "D5") 
-psF.media <- tax_glom(subset_samples(ps0, SampleType=="Media"), taxrank = "D5")
+psF.media <- tax_glom(subset_samples(psF, SampleType=="Media"), taxrank = "D5")
 ```
- 
+  
+  
+Gut Only Compositional Plot (for reference)
+```{r gut Only Compositional Plot}
+psmeltF.gut <- psmelt(psF.gut)
+
+abundantClasses.gut <- psmeltF.gut %>% group_by(D5) %>% summarize(frac = n() / nrow(.)) %>% na.omit() %>% pull(D5)
+
+psmeltF.gut %>% filter(D5 %in% abundantClasses.gut) %>% ggplot(aes_string(x = "Generation", y = "Abundance", fill = "D5")) + geom_bar(stat = "identity", position = "fill") + theme(axis.text.x = element_text(angle = 0, hjust = 0), legend.text=element_text(size=rel(1))) + scale_fill_discrete(name="Genera")  + scale_y_sqrt() + ylab(expression(sqrt("Fraction of Community"))) + xlab("Generation") + facet_grid(~Treatment, scales="free")
+
+ggsave("Filtered Gut Barplot (Genus Level).pdf", height = 5, width = 12)
+```
+  
+  
+Media Only Compositional Plot (for reference)
+```{r Media Only Compositional Plot}
+psmeltF.media <- psmelt(psF.media)
+
+abundantClasses.media <- psmeltF.media %>% group_by(D5) %>% summarize(frac = n() / nrow(.)) %>% na.omit() %>% pull(D5)
+
+psmeltF.media %>% filter(D5 %in% abundantClasses.media) %>% ggplot(aes_string(x = "Generation", y = "Abundance", fill = "D5")) + geom_bar(stat = "identity", position = "fill") + theme(axis.text.x = element_text(angle = 0, hjust = 0), legend.text=element_text(size=rel(1))) + scale_fill_discrete(name="Genera")  + scale_y_sqrt() + ylab(expression(sqrt("Fraction of Community"))) + xlab("Generation") + facet_grid(~Treatment, scales="free")
+
+ggsave("Filtered Media Barplot (Genus Level).pdf", height = 5, width = 12)
+```
+  
+  
 ##Alpha diversity
 Gut Samples:
 ```{r Gut Alpha Diversity}
@@ -177,7 +211,9 @@ divnet_gut_summary %>% ggplot(aes(Treatment, alpha, color = Treatment)) + geom_p
 
 ggsave("Alpha Diversity (gut).pdf", height = 10, width = 7)
 ```
-
+  
+  
+Media Samples:
 ```{r Media Alpha Diversity}
 divnet_media <-  divnet(tax_glom(psF.media, taxrank = "D5"), X = "GenTreat")
 
@@ -190,120 +226,145 @@ divnet_media_summary %>% ggplot(aes(Treatment, alpha, color = Treatment)) + geom
 
 ggsave("Alpha Diversity (media).pdf", height = 10, width = 7)
 ```
+  
+  
+  
+##Examine detected disperson differences
+###Using DESeq2
+Due to plate set up during processing of microbiome genes for sequencing, F0/F1 has been separated from F2/F3 to help prevent potentially biasing batch effect analysis errors.
+```{r DeSeq2 Gut Analysis}
+#F0/F1 Data
+psF.gut01 <- subset_samples(psF.gut, Generation %in% c("F0", "F1"))
+ddse01 <- phyloseq_to_deseq2(psF.gut01, ~GenTreat+0)
+ddse01 <- estimateSizeFactors(ddse01)
+idx <- rowSums(counts(ddse01, normalized=TRUE) >= 5 ) >= 5 # additional abundance-based filtering, must have more than five counts in more than five samples in the design
+ddse1 <- DESeq(ddse01[idx,], test="Wald", fitType="local")
+resultsNames(ddse1)
+#Contrasts:
+res0 <- results(ddse1, contrast=c("GenTreat","F0CD","F0NSD"))
+res1 <- results(ddse1, contrast=c("GenTreat","F1CD","F1NSD"))
 
+#F2/F3 Data
+psF.gut23 <- subset_samples(psF.gut, Generation %in% c("F2", "F3"))
+ddse23 <- phyloseq_to_deseq2(psF.gut23, ~GenTreat+0)
+ddse23 <- estimateSizeFactors(ddse23)
+idx <- rowSums(counts(ddse23, normalized=TRUE) >= 5 ) >= 5 # additional abundance-based filtering, must have more than five counts in more than five samples in the design
+ddse2 <- DESeq(ddse23[idx,], test="Wald", fitType="local")
+resultsNames(ddse2)
+#Contrasts:
+res2 <- results(ddse2, contrast=c("GenTreat","F2CD","F2NSD"))
+res3 <- results(ddse2, contrast=c("GenTreat","F3CD","F3NSD"))
 
-##Examine detected disperson differences 
-Maggi/Sasha's Code of DESeq 2
+table(res0$padj < 0.05)
+table(res1$padj < 0.05)
+table(res2$padj < 0.05)
+table(res3$padj < 0.05)
+
+res0$genus <- gsub("D5", "", tax_table(psF.gut)[rownames(res0)])
+res0
+res0[res0$padj < 0.05, c("genus", "log2FoldChange", "padj")]
+res01 <- res0[rownames(res1)[which(res1$padj<0.05)],"padj"]
+```
+  
+  
+Table and Plot Significant Results
 ```{r}
-# ddse <- phyloseq_to_deseq2(psF.gut, ~GenTreat+0)
-# ddse <- estimateSizeFactors(ddse)
-# idx <- rowSums(counts(ddse, normalized=TRUE) >= 5 ) >= 5 # additional abundance-based filtering, must have more than five counts in more than five samples in the design
-# ddse2 <- DESeq(ddse[idx,], test="Wald", fitType="local")
-# resultsNames(ddse2)
-# resgut1CN <- results(ddse2, contrast=c("GenTreat","F1CD","F1NSD"))
-# resgut1CH <- results(ddse2, contrast=c("GenTreat","F1CD","F1HSD"))
-# res1gut <- rbind(resgut1CN, resgut1CH)
-# table(res1gut$padj < 0.05)
-# # returns data frame of normalized counts for plotting form a deseq object and a table of results
-# combineSig <- function(ddse, res1gut) {
-#   sigtab <- res1gut[which(res1gut$padj < 0.05), ]
-#   taxCounts <- list()
-#   i <- 1
-#   for (taxon in rownames(sigtab)) {
-#     taxName <- as.data.frame(tax_table(psF)[taxon])[,6]
-#     tc <- plotCounts(ddse, gene=taxon, intgroup="GenTreat", returnData=TRUE)
-#     tc$species <- taxName
-#     tc$code <- paste(taxon,taxName)
-#     taxCounts[[i]] <- tc %>% separate(GenTreat, into = c("Gen", "Treat"), sep=2) %>% mutate(species = gsub("D_5__", "", species))
-#     i <- i + 1
-#   }
-#   return(plyr::rbind.fill(taxCounts))
-# }
-# combineSig(ddse2,res1gut) %>% ggplot(aes(Treat,count,color=Treat)) + geom_jitter(width=.1)+facet_grid(species~Gen)+scale_y_log10()
-# resgut0CN <- results(ddse2, contrast=c("GenTreat","F0CD","F0NSD"))
-# resgut0CH <- results(ddse2, contrast=c("GenTreat","F0CD","F0HSD"))
-# res0gut <- rbind(resgut0CN, resgut0CH)
-# res0gut$species <- gsub("D_5__", "", tax_table(psF)[rownames(res0gut)])
-# res0gut[res0gut$padj < 0.05,c("species", "log2FoldChange", "padj")]
-# res0gut[rownames(res1gut)[which(res1gut$padj<0.05)],"padj"]
+#To be completed after lines 263-266 are resolved
 ```
 
-###Gut:
-#### F0 permutation test 
-```{r}
-psF.gut.F0 <- tax_glom(subset_samples(psF.gut, Generation= "F0"), taxrank = "D5")  
+###Using Permutation Test
+```{r Permutation Analyses Gut}
+#F0
+psF.gut.F0 <- tax_glom(subset_samples(psF.gut, Generation=="F0"), taxrank = "D5")  
 gut.F0 = UniFrac(psF.gut.F0)
 #tests homogeneity of dispersion among groups (https://www.researchgate.net/post/Betadisper_and_adonis_in_R_Am_I_interpreting_my_output_correctly)
 gut.F0.adonis <- adonis2(gut.F0 ~ Treatment, as(sample_data(psF.gut.F0), "data.frame"), permutations = 10000, strata = line)
 gut.F0.adonis
 #tests for differences between groups
 anova(betadisper(gut.F0, sample_data(psF.gut.F0)$Treatment))
-plot(betadisper(gut.F0, sample_data(psF.gut.F0)$Treatment))
-```
 
-### F1 permutation test
-```{r}
-psF.gut.F1 <- tax_glom(subset_samples(psF.gut, Generation= "F1"), taxrank = "D5")  
+#F1
+psF.gut.F1 <- tax_glom(subset_samples(psF.gut, Generation=="F1"), taxrank = "D5")  
 gut.F1 = UniFrac(psF.gut.F1)
 #tests homogeneity of dispersion among groups
 gut.F1.adonis <- adonis2(gut.F1 ~ Treatment, as(sample_data(psF.gut.F1), "data.frame"), permutations = 10000, strata = line)
 gut.F1.adonis
 #tests for differences between groups
 anova(betadisper(gut.F1, sample_data(psF.gut.F1)$Treatment))
-```
 
-#### F2 permutation test 
-```{r}
-psF.gut.F2 <- tax_glom(subset_samples(psF.gut, Generation= "F2"), taxrank = "D5")  
+#F2
+psF.gut.F2 <- tax_glom(subset_samples(psF.gut, Generation=="F2"), taxrank = "D5")  
 gut.F2 = UniFrac(psF.gut.F2)
 #tests homogeneity of dispersion among groups (https://www.researchgate.net/post/Betadisper_and_adonis_in_R_Am_I_interpreting_my_output_correctly)
 gut.F2.adonis <- adonis2(gut.F2 ~ Treatment, as(sample_data(psF.gut.F2), "data.frame"), permutations = 10000, strata = line)
 gut.F2.adonis
 #tests for differences between groups
 anova(betadisper(gut.F2, sample_data(psF.gut.F2)$Treatment))
-plot(betadisper(gut.F2, sample_data(psF.gut.F2)$Treatment))
-```
 
-#### F3 permutation test 
-```{r}
-psF.gut.F3 <- tax_glom(subset_samples(psF.gut, Generation= "F3"), taxrank = "D5")  
+#F3
+psF.gut.F3 <- tax_glom(subset_samples(psF.gut, Generation=="F3"), taxrank = "D5")  
 gut.F3 = UniFrac(psF.gut.F3)
 #tests homogeneity of dispersion among groups (https://www.researchgate.net/post/Betadisper_and_adonis_in_R_Am_I_interpreting_my_output_correctly)
 gut.F3.adonis <- adonis2(gut.F3 ~ Treatment, as(sample_data(psF.gut.F3), "data.frame"), permutations = 10000, strata = line)
 gut.F3.adonis
 #tests for differences between groups
 anova(betadisper(gut.F3, sample_data(psF.gut.F3)$Treatment))
-plot(betadisper(gut.F3, sample_data(psF.gut.F3)$Treatment))
 ```
+**Using the permutation test gives no significant results. Given that DESeq2 is considered the more reliable and sensitive method according to several publications, I think we remove the permutational tests from the analyses all together. 
 
 
 ###Media:
-#### F0 permutation test 
+```{r DeSeq2 Media Analysis}
+#F0/F1 Data
+psF.media01 <- subset_samples(psF.media, Generation %in% c("F0", "F1"))
+ddseM01 <- phyloseq_to_deseq2(psF.media01, ~GenTreat+0)
+ddseM01 <- estimateSizeFactors(ddseM01)
+ddseM01 <- estimateDispersionsGeneEst(ddseM01)
+dispersions(ddseM01) <- mcols(ddseM01)$dispGeneEst
+idx <- rowSums(counts(ddseM01, normalized=TRUE) >= 5 ) >= 5 # additional abundance-based filtering, must have more than five counts in more than five samples in the design
+ddseM1 <- DESeq(ddseM01[idx,], test="Wald", fitType="local")
+resultsNames(ddseM1)
+#Contrasts:
+res0M <- results(ddseM1, contrast=c("GenTreat","F0CD","F0NSD"))
+res1M <- results(ddseM1, contrast=c("GenTreat","F1CD","F1NSD"))
+
+#F2/F3 Data
+psF.media23 <- subset_samples(psF.media, Generation %in% c("F2", "F3"))
+ddseM23 <- phyloseq_to_deseq2(psF.media23, ~GenTreat+0)
+ddseM23 <- estimateSizeFactors(ddseM23)
+idx <- rowSums(counts(ddseM23, normalized=TRUE) >= 5 ) >= 5 # additional abundance-based filtering, must have more than five counts in more than five samples in the design
+ddseM2 <- DESeq(ddseM23[idx,], test="Wald", fitType="local")
+resultsNames(ddseM2)
+#Contrasts:
+resM2 <- results(ddseM2, contrast=c("GenTreat","F2CD","F2NSD"))
+resM3 <- results(ddseM2, contrast=c("GenTreat","F3CD","F3NSD"))
+
+table(resM0$padj < 0.05)
+table(resM1$padj < 0.05)
+table(resM2$padj < 0.05)
+table(resM3$padj < 0.05)
+```
+
+
+#### Media permutation tests
 ```{r}
-psF.media.F0 <- tax_glom(subset_samples(psF.media, Generation= "F0"), taxrank = "D5")  
+psF.media.F0 <- tax_glom(subset_samples(psF.media, Generation=="F0"), taxrank = "D5")  
 media.F0 = UniFrac(psF.media.F0)
 #tests homogeneity of dispersion among groups (https://www.researchgate.net/post/Betadisper_and_adonis_in_R_Am_I_interpreting_my_output_correctly)
 media.F0.adonis <- adonis2(media.F0 ~ Treatment, as(sample_data(psF.media.F0), "data.frame"), permutations = 10000, strata = line)
 media.F0.adonis
 #tests for differences between groups
 anova(betadisper(media.F0, sample_data(psF.media.F0)$Treatment))
-plot(betadisper(media.F0, sample_data(psF.media.F0)$Treatment))
-```
-FO Fails homogeneity
 
-### F1 permutation test
-```{r}
-psF.media.F1 <- tax_glom(subset_samples(psF.media, Generation= "F1"), taxrank = "D5")  
+
+psF.media.F1 <- tax_glom(subset_samples(psF.media, Generation=="F1"), taxrank = "D5")  
 media.F1 = UniFrac(psF.media.F1)
 #tests homogeneity of dispersion among groups
 media.F1.adonis <- adonis2(media.F1 ~ Treatment, as(sample_data(psF.media.F1), "data.frame"), permutations = 10000, strata = line)
 media.F1.adonis
 #tests for differences between groups
 anova(betadisper(media.F1, sample_data(psF.media.F1)$Treatment))
-```
 
-#### F2 permutation test 
-```{r}
 psF.media.F2 <- tax_glom(subset_samples(psF.media, Generation= "F2"), taxrank = "D5")  
 media.F2 = UniFrac(psF.media.F2)
 #tests homogeneity of dispersion among groups (https://www.researchgate.net/post/Betadisper_and_adonis_in_R_Am_I_interpreting_my_output_correctly)
@@ -312,10 +373,7 @@ media.F2.adonis
 #tests for differences between groups
 anova(betadisper(media.F2, sample_data(psF.media.F2)$Treatment))
 plot(betadisper(media.F2, sample_data(psF.media.F2)$Treatment))
-```
 
-#### F3 permutation test 
-```{r}
 psF.media.F3 <- tax_glom(subset_samples(psF.media, Generation= "F3"), taxrank = "D5")  
 media.F3 = UniFrac(psF.media.F3)
 #tests homogeneity of dispersion among groups (https://www.researchgate.net/post/Betadisper_and_adonis_in_R_Am_I_interpreting_my_output_correctly)

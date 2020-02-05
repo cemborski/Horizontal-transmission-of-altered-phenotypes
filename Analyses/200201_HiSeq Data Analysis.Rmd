@@ -278,7 +278,20 @@ bind_rows(as.data.frame(res0)[,c("genus.D5", "log2FoldChange", "padj")],
   
 Table and Plot Significant Results
 ```{r}
-#To be completed after lines 263-266 are resolved
+phenotypes <- read_csv("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/Phenotype%20Analysis/phenotype_data") %>% filter(! grepl("\\+", Treatment) & Sex == "female") %>% mutate(Treatment = factor(Treatment, labels = c("CD", "NSD"))) %>% left_join(psF.gut@sam_data, ., by = c("Generation", "Treatment", "SampleNumber" = "Sample")) %>% select(Plate, Generation, Treatment, GenTreat, TransGen, Fat.Weight, TAG) %>% mutate (TAGwt = TAG/Fat.Weight)
+
+psF.gut@sam_data$TAGwt <- phenotypes$TAGwt
+psF.gutMet <- subset_samples(psF.gut,  Generation %in% c("F1", "F2", "F3"))
+ddseMet <- phyloseq_to_deseq2(psF.gutMet, ~ TAGwt )
+ddseMet <- estimateSizeFactors(ddseMet)
+idx <- rowSums(counts(ddseMet, normalized=TRUE) >= 5 ) >= 5
+ddseMet2 <- DESeq(ddseMet[idx,], test="Wald", fitType="local")
+resultsNames(ddseMet2)
+table(results(ddseMet2, name="TAGwt")$padj<0.05)
+(tagsig <- results(ddseMet2, name="TAGwt")[results(ddseMet2, name="TAGwt")$padj<0.05,])
+tax_table(psF.gut)[rownames(tagsig),6]
+metCounts <- data.table::rbindlist(lapply(1:3, function(x) {  plotCounts(ddseMet, gene=rownames(tagsig)[x], intgroup="TAGwt",returnData=TRUE) %>% mutate(taxon = as.vector(gsub("D_5__","", tax_table(psF.gut)[rownames(tagsig)[x],6])), Generation = colData(ddseMet2)$Generation, Treatment = colData(ddseMet2)$Treatment) })) 
+metCounts %>% ggplot(aes(count, TAGwt, color=Generation, shape=Treatment ))+geom_point()+scale_x_log10(limit=c(1,NA))+facet_grid(taxon~.)+stat_smooth(method="lm",aes(group=0))  
 ```
 
 ###Using Permutation Test

@@ -241,8 +241,8 @@ idx <- rowSums(counts(ddse01, normalized=TRUE) >= 5 ) >= 5 # additional abundanc
 ddse1 <- DESeq(ddse01[idx,], test="Wald", fitType="local")
 resultsNames(ddse1)
 #Contrasts:
-res0 <- results(ddse1, contrast=c("GenTreat","F0CD","F0NSD")) #numerator (control) , denominator(nsd)
-res1 <- results(ddse1, contrast=c("GenTreat","F1CD","F1NSD"))
+res0 <- results(ddse1, contrast=c("GenTreat","F0NSD","F0CD")) #numerator (control) , denominator(nsd)
+res1 <- results(ddse1, contrast=c("GenTreat","F1NSD","F1CD"))
 
 #F2/F3 Data
 psF.gut23 <- subset_samples(psF.gut, Generation %in% c("F2", "F3"))
@@ -252,8 +252,8 @@ idx <- rowSums(counts(ddse23, normalized=TRUE) >= 5 ) >= 5 # additional abundanc
 ddse2 <- DESeq(ddse23[idx,], test="Wald", fitType="local")
 resultsNames(ddse2)
 #Contrasts:
-res2 <- results(ddse2, contrast=c("GenTreat","F2CD","F2NSD")) 
-res3 <- results(ddse2, contrast=c("GenTreat","F3CD","F3NSD"))
+res2 <- results(ddse2, contrast=c("GenTreat","F2NSD","F2CD")) 
+res3 <- results(ddse2, contrast=c("GenTreat","F3NSD","F3CD"))
 
 table(res0$padj < 0.05)
 table(res1$padj < 0.05)
@@ -265,12 +265,13 @@ res1$genus <- gsub("D_5__", "", tax_table(psF.gut)[rownames(res1)])
 res2$genus <- gsub("D_5__", "", tax_table(psF.gut)[rownames(res2)])
 res3$genus <- gsub("D_5__", "", tax_table(psF.gut)[rownames(res3)])
 
-bind_rows(as.data.frame(res0)[,c("genus.D5", "log2FoldChange", "pvalue")],
-          as.data.frame(res1)[,c("genus.D5", "log2FoldChange", "pvalue")],
-          as.data.frame(res2)[,c("genus.D5", "log2FoldChange", "pvalue")],
-          as.data.frame(res3)[,c("genus.D5", "log2FoldChange", "pvalue")],
-          .id = "generations") %>% mutate(generations = as.numeric(generations) - 1, sig = ifelse(padj<0.05, 1, .5)) %>%
-  ggplot(aes(generations, log2FoldChange, color = genus.D5, alpha = sig, group = genus.D5)) + geom_point(aes(size=5)) + geom_line(alpha=0.5)
+bind_rows(as.data.frame(res0)[,c("genus.D5", "log2FoldChange", "padj")],
+          as.data.frame(res1)[,c("genus.D5", "log2FoldChange", "padj")],
+          as.data.frame(res2)[,c("genus.D5", "log2FoldChange", "padj")],
+          as.data.frame(res3)[,c("genus.D5", "log2FoldChange", "padj")],
+          .id = "generations") %>% 
+  mutate(generations = as.numeric(generations) - 1, sig = ifelse(padj<0.05, 1, .5)) %>%
+  ggplot(aes(generations, log2FoldChange, color = genus.D5, alpha = sig, group = genus.D5)) + geom_point(aes(size=5)) + geom_line(alpha=0.5) + guides(size = "none", alpha = "none")
 
 ```
   

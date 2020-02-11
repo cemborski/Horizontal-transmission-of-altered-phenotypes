@@ -1,13 +1,21 @@
 ---
-title: "200204_HiSeq Data Analysis"
+title: "Horizontal Transmission of Altered Phenotypes"
 author: "Carmen Emborski"
 date: "2/04/2020"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    toc_collapsed: true
+    number_sections: true
+    theme: lumen
 ---
-
-```{r setup, include=FALSE, cache = F}
+  
+# Libraries Used (NEEDS CLEANED UP)
+```{r, Library Setup, cache = F, warning=FALSE, message=FALSE}
 knitr::opts_chunk$set(echo = TRUE, error = TRUE)
-library(knitr)
+library(knitr) #for rmd file
 library(kableExtra)
 library(gridExtra)
 library(scales)
@@ -17,23 +25,495 @@ library(stringr)
 library(lme4)
 library(nlme)
 library(effects)
-library(DESeq2)
+library(DESeq2) #differential abundance analysis
 library(qiime2R)
-library(phyloseq)
+library(phyloseq) #phyloseq for microbiome data
 library(DivNet)
 library(vegan)
-library(sjPlot) #  mixed effects table summary
-library(ggplot2)
+#library(sjPlot) #mixed effects table summary
+library(ggplot2) #for plots
 library(devtools)
+library(broom) #tidy
+library(multcomp) #glht
+library(ggsignif) #geom_signif
+library(grid) #textGrob
+
+
+#library(boot)
+#library(lsmeans)
 theme_set(theme_minimal() + theme(legend.position = "bottom", axis.title =  element_text(size = 20), axis.text =  element_text(size = 10), strip.text = element_text(size = 20)) + theme_bw())
 ```
+  
+  
+# Phenotype Analyses:
+## Import Data
+```{r, Phenotype Data, warning=FALSE,message=FALSE}
+Pdat <- read.csv("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/PhenotypeData.csv")
+```
+  
+## Run Contrasts:
+H1: Horizontal transmission alters metabolic phenotypes (i.e whole body glucose, trehalose, glycogen, and triglyceride concentrations) relative to controls across generations. 
+H2: Horizontal transmission of host-associated bacteria transgenerationally alters metabolic phenotypes (i.e whole body glucose, trehalose, glycogen, and triglyceride concentrations) relative to controls across generations.
+  
+```{r, Phenotype Contrasts, warning=FALSE,message=FALSE}
+dat <- Pdat
 
-##Import Files  
+####TAG ####
+dat$Antibiotic <- factor(dat$Antibiotic, levels = c("antibiotic", "no antibiotic"))
+dat$Generation <- factor(dat$Generation, levels = c("F1", "F2", "F3"))
+
+#Model
+fat.lm <- glm(TAG ~ GenTreatment*Antibiotic*Generation+Fat.Weight, data=dat)
+summary(fat.lm)
+
+#H1
+fat.contrast.matrix <- rbind(
+  'N.+ vs C.+ (F1)' = c(1,-1,0,0,0,0,0,0,0,0, 0,0,0), 
+  'N.- vs C.- (F1)' = c(0,0,1,0,0,0,-1,0,0,0, 0,0,0), 
+  'N.+ vs C.+ (F2)' = c(0,0,0,1,0,0,0,-1,0,0, 0,0,0), 
+  'N.- vs C.- (F2)' = c(0,0,0,0,0,0,0,0,0,1, 0,-1,0), 
+  'N.+ vs C.+ (F3)' = c(0,0,0,0,1,0,0,0,-1,0, 0,0,0), 
+  'N.- vs C.- (F3)' = c(0,0,0,0,0,0,0,0,0,0, 1,0,-1)) #All Correct.
+fat.comps <- glht(fat.lm, fat.contrast.matrix)
+H1.tag <- summary(fat.comps)
+
+
+#H2 (F1) Test:
+dat$Generation <- factor(dat$Generation, levels = c("F3", "F2", "F1"))
+F1.fat.lm <- glm(TAG ~ GenTreatment*Antibiotic*Generation+Fat.Weight, data=dat)
+#summary(F1.fat.lm)
+Kno_antibiotic <- rep(0,length(F1.fat.lm$coefficients))
+names(Kno_antibiotic) <- names(F1.fat.lm$coefficients)
+Kantibiotic <- rep(0,length(F1.fat.lm $coefficients))
+names(Kantibiotic) <- names(F1.fat.lm $coefficients)
+Kantibiotic["GenerationF1"] <- 1 
+Kantibiotic["GenTreatmentN:GenerationF1"] <- -1 
+Kno_antibiotic["Antibioticno antibiotic:GenerationF1"] <- 1 
+Kno_antibiotic["GenTreatmentN:Antibioticno antibiotic:GenerationF1"] <- -1 
+Ka <- matrix(Kno_antibiotic,1) - matrix(Kantibiotic,1)
+H2F1.tag <- summary(glht(F1.fat.lm, linfct = Ka))
+H2F1.tag
+#Is the effect smaller in antibiotics? #Yes. 
+abs(F1.fat.lm$coefficients["Antibioticno antibiotic"] -
+        fat.lm$coefficients["GenTreatmentN:Antibioticno antibiotic"]) > 
+abs(F1.fat.lm$coefficients["(Intercept)"] -
+      fat.lm$coefficients["GenTreatmentN"]) 
+
+#H2 (F2) Test:
+Kno_antibiotic <- rep(0,length(fat.lm$coefficients))
+names(Kno_antibiotic) <- names(fat.lm$coefficients)
+Kantibiotic <- rep(0,length(fat.lm $coefficients))
+names(Kantibiotic) <- names(fat.lm $coefficients)
+Kantibiotic["GenTreatmentN:GenerationF2"] <- 1 
+Kantibiotic["GenerationF2"] <- -1 
+Kno_antibiotic["GenTreatmentN:Antibioticno antibiotic:GenerationF2"] <- 1 
+Kno_antibiotic["Antibioticno antibiotic:GenerationF2"] <- -1 
+Ka <- matrix(Kno_antibiotic,1) - matrix(Kantibiotic,1)
+H2F2.tag <-summary(glht(fat.lm, linfct = Ka))
+H2F2.tag
+#Is the effect smaller in antibiotics?
+abs(fat.lm$coefficients["Antibioticno antibiotic:GenerationF2"] -
+        fat.lm$coefficients["GenTreatmentN:Antibioticno antibiotic:GenerationF2"]) >
+abs(fat.lm$coefficients["GenerationF2"] -
+      fat.lm$coefficients["GenTreatmentN:GenerationF2"])  
+
+#H2 (F3) Test:
+Kno_antibiotic <- rep(0,length(fat.lm$coefficients))
+names(Kno_antibiotic) <- names(fat.lm$coefficients)
+Kantibiotic <- rep(0,length(fat.lm $coefficients))
+names(Kantibiotic) <- names(fat.lm $coefficients)
+Kantibiotic["GenTreatmentN:GenerationF3"] <- 1 
+Kantibiotic["GenerationF3"] <- -1 
+Kno_antibiotic["GenTreatmentN:Antibioticno antibiotic:GenerationF3"] <- 1 
+Kno_antibiotic["Antibioticno antibiotic:GenerationF3"] <- -1 
+Ka <- matrix(Kno_antibiotic,1) - matrix(Kantibiotic,1)
+H2F3.tag <-summary(glht(fat.lm, linfct = Ka))
+H2F3.tag
+#Is the effect smaller in antibiotics?
+abs(fat.lm$coefficients["Antibioticno antibiotic:GenerationF3"] -
+        fat.lm$coefficients["GenTreatmentN:Antibioticno antibiotic:GenerationF3"]) >
+abs(fat.lm$coefficients["GenerationF3"] -
+      fat.lm$coefficients["GenTreatmentN:GenerationF3"])
+
+
+
+#### Glycogen ####
+dat$Antibiotic <- factor(dat$Antibiotic, levels = c("antibiotic", "no antibiotic"))
+dat$Generation <- factor(dat$Generation, levels = c("F1", "F2", "F3"))
+
+#Model
+glyc.lm <- glm(Glycogen ~ GenTreatment*Antibiotic*Generation+Sugar.Weight, data=dat)
+summary(glyc.lm)
+
+#H1
+glyc.contrast.matrix <- rbind(
+  'N.+ vs C.+ (F1)' = c(1,-1,0,0,0,0,0,0,0,0, 0,0,0), 
+  'N.- vs C.- (F1)' = c(0,0,1,0,0,0,-1,0,0,0, 0,0,0), 
+  'N.+ vs C.+ (F2)' = c(0,0,0,1,0,0,0,-1,0,0, 0,0,0), 
+  'N.- vs C.- (F2)' = c(0,0,0,0,0,0,0,0,0,1, 0,-1,0), 
+  'N.+ vs C.+ (F3)' = c(0,0,0,0,1,0,0,0,-1,0, 0,0,0), 
+  'N.- vs C.- (F3)' = c(0,0,0,0,0,0,0,0,0,0, 1,0,-1)) #All Correct.
+glyc.comps <- glht(glyc.lm, glyc.contrast.matrix)
+H1.glyc <- summary(glyc.comps)
+
+#H2 (F1) Test:
+Kno_antibiotic <- rep(0,length(glyc.lm$coefficients))
+names(Kno_antibiotic) <- names(glyc.lm$coefficients)
+Kantibiotic <- rep(0,length(glyc.lm $coefficients))
+names(Kantibiotic) <- names(glyc.lm $coefficients)
+Kantibiotic["(Intercept)"] <- 1 
+Kantibiotic["GenTreatmentN"] <- -1 
+Kno_antibiotic["Antibioticno antibiotic"] <- 1 
+Kno_antibiotic["GenTreatmentN:Antibioticno antibiotic"] <- -1 
+Ka <- matrix(Kno_antibiotic,1) - matrix(Kantibiotic,1)
+H2F1.glyc <- summary(glht(glyc.lm, linfct = Ka))
+H2F1.glyc
+#Is the effect smaller in antibiotics? #Yes. 
+abs(glyc.lm$coefficients["Antibioticno antibiotic"] -
+        glyc.lm$coefficients["GenTreatmentN:Antibioticno antibiotic"]) > 
+abs(glyc.lm$coefficients["(Intercept)"] -
+      glyc.lm$coefficients["GenTreatmentN"]) 
+
+#H2 (F2) Test:
+Kno_antibiotic <- rep(0,length(glyc.lm$coefficients))
+names(Kno_antibiotic) <- names(glyc.lm$coefficients)
+Kantibiotic <- rep(0,length(glyc.lm $coefficients))
+names(Kantibiotic) <- names(glyc.lm $coefficients)
+Kantibiotic["GenTreatmentN:GenerationF2"] <- 1 
+Kantibiotic["GenerationF2"] <- -1 
+Kno_antibiotic["GenTreatmentN:Antibioticno antibiotic:GenerationF2"] <- 1 
+Kno_antibiotic["Antibioticno antibiotic:GenerationF2"] <- -1 
+Ka <- matrix(Kno_antibiotic,1) - matrix(Kantibiotic,1)
+H2F2.glyc <-summary(glht(glyc.lm, linfct = Ka))
+H2F2.glyc
+#Is the effect smaller in antibiotics?
+abs(glyc.lm$coefficients["Antibioticno antibiotic:GenerationF2"] -
+        glyc.lm$coefficients["GenTreatmentN:Antibioticno antibiotic:GenerationF2"]) >
+abs(glyc.lm$coefficients["GenerationF2"] -
+      glyc.lm$coefficients["GenTreatmentN:GenerationF2"])  
+
+#H2 (F3) Test:
+Kno_antibiotic <- rep(0,length(glyc.lm$coefficients))
+names(Kno_antibiotic) <- names(glyc.lm$coefficients)
+Kantibiotic <- rep(0,length(glyc.lm $coefficients))
+names(Kantibiotic) <- names(glyc.lm $coefficients)
+Kantibiotic["GenTreatmentN:GenerationF3"] <- 1 
+Kantibiotic["GenerationF3"] <- -1 
+Kno_antibiotic["GenTreatmentN:Antibioticno antibiotic:GenerationF3"] <- 1 
+Kno_antibiotic["Antibioticno antibiotic:GenerationF3"] <- -1 
+Ka <- matrix(Kno_antibiotic,1) - matrix(Kantibiotic,1)
+H2F3.glyc <-summary(glht(glyc.lm, linfct = Ka))
+H2F3.glyc
+#Is the effect smaller in antibiotics?
+abs(glyc.lm$coefficients["Antibioticno antibiotic:GenerationF3"] -
+        glyc.lm$coefficients["GenTreatmentN:Antibioticno antibiotic:GenerationF3"]) >
+abs(glyc.lm$coefficients["GenerationF3"] -
+      glyc.lm$coefficients["GenTreatmentN:GenerationF3"])
+
+
+
+#### Trehalose ####
+dat$Antibiotic <- factor(dat$Antibiotic, levels = c("antibiotic", "no antibiotic"))
+
+#Model
+treh.lm <- glm(Trehalose ~ GenTreatment*Antibiotic*Generation+Sugar.Weight, data=dat)
+summary(treh.lm)
+
+#H1
+treh.contrast.matrix <- rbind(
+  'N.+ vs C.+ (F1)' = c(1,-1,0,0,0,0,0,0,0,0, 0,0,0), 
+  'N.- vs C.- (F1)' = c(0,0,1,0,0,0,-1,0,0,0, 0,0,0), 
+  'N.+ vs C.+ (F2)' = c(0,0,0,1,0,0,0,-1,0,0, 0,0,0), 
+  'N.- vs C.- (F2)' = c(0,0,0,0,0,0,0,0,0,1, 0,-1,0), 
+  'N.+ vs C.+ (F3)' = c(0,0,0,0,1,0,0,0,-1,0, 0,0,0), 
+  'N.- vs C.- (F3)' = c(0,0,0,0,0,0,0,0,0,0, 1,0,-1)) #All Correct.
+treh.comps <- glht(treh.lm, treh.contrast.matrix)
+H1.treh <- summary(treh.comps)
+
+#H2 (F1) Test:
+Kno_antibiotic <- rep(0,length(treh.lm$coefficients))
+names(Kno_antibiotic) <- names(treh.lm$coefficients)
+Kantibiotic <- rep(0,length(treh.lm $coefficients))
+names(Kantibiotic) <- names(treh.lm $coefficients)
+Kantibiotic["(Intercept)"] <- 1 
+Kantibiotic["GenTreatmentN"] <- -1 
+Kno_antibiotic["Antibioticno antibiotic"] <- 1 
+Kno_antibiotic["GenTreatmentN:Antibioticno antibiotic"] <- -1 
+Ka <- matrix(Kno_antibiotic,1) - matrix(Kantibiotic,1)
+H2F1.treh <- summary(glht(treh.lm, linfct = Ka))
+H2F1.treh
+#Is the effect smaller in antibiotics? #Yes. 
+abs(treh.lm$coefficients["Antibioticno antibiotic"] -
+        treh.lm$coefficients["GenTreatmentN:Antibioticno antibiotic"]) > 
+abs(treh.lm$coefficients["(Intercept)"] -
+      treh.lm$coefficients["GenTreatmentN"]) 
+
+#H2 (F2) Test:
+Kno_antibiotic <- rep(0,length(treh.lm$coefficients))
+names(Kno_antibiotic) <- names(treh.lm$coefficients)
+Kantibiotic <- rep(0,length(treh.lm $coefficients))
+names(Kantibiotic) <- names(treh.lm $coefficients)
+Kantibiotic["GenTreatmentN:GenerationF2"] <- 1 
+Kantibiotic["GenerationF2"] <- -1 
+Kno_antibiotic["GenTreatmentN:Antibioticno antibiotic:GenerationF2"] <- 1 
+Kno_antibiotic["Antibioticno antibiotic:GenerationF2"] <- -1 
+Ka <- matrix(Kno_antibiotic,1) - matrix(Kantibiotic,1)
+H2F2.treh <-summary(glht(treh.lm, linfct = Ka))
+H2F2.treh
+#Is the effect smaller in antibiotics?
+abs(treh.lm$coefficients["Antibioticno antibiotic:GenerationF2"] -
+        treh.lm$coefficients["GenTreatmentN:Antibioticno antibiotic:GenerationF2"]) >
+abs(treh.lm$coefficients["GenerationF2"] -
+      treh.lm$coefficients["GenTreatmentN:GenerationF2"])  
+
+#H2 (F3) Test:
+Kno_antibiotic <- rep(0,length(treh.lm$coefficients))
+names(Kno_antibiotic) <- names(treh.lm$coefficients)
+Kantibiotic <- rep(0,length(treh.lm $coefficients))
+names(Kantibiotic) <- names(treh.lm $coefficients)
+Kantibiotic["GenTreatmentN:GenerationF3"] <- 1 
+Kantibiotic["GenerationF3"] <- -1 
+Kno_antibiotic["GenTreatmentN:Antibioticno antibiotic:GenerationF3"] <- 1 
+Kno_antibiotic["Antibioticno antibiotic:GenerationF3"] <- -1 
+Ka <- matrix(Kno_antibiotic,1) - matrix(Kantibiotic,1)
+H2F3.treh <-summary(glht(treh.lm, linfct = Ka))
+H2F3.treh
+#Is the effect smaller in antibiotics?
+abs(treh.lm$coefficients["Antibioticno antibiotic:GenerationF3"] -
+        treh.lm$coefficients["GenTreatmentN:Antibioticno antibiotic:GenerationF3"]) > abs(treh.lm$coefficients["GenerationF3"] -
+      treh.lm$coefficients["GenTreatmentN:GenerationF3"])
+
+
+
+#### Glucose ####
+dat$Antibiotic <- factor(dat$Antibiotic, levels = c("antibiotic", "no antibiotic"))
+
+#Model
+gluc.lm <- glm(Glucose ~ GenTreatment*Antibiotic*Generation+Sugar.Weight, data=dat)
+summary(gluc.lm)
+
+#H1
+gluc.contrast.matrix <- rbind(
+  'N.+ vs C.+ (F1)' = c(1,-1,0,0,0,0,0,0,0,0, 0,0,0), 
+  'N.- vs C.- (F1)' = c(0,0,1,0,0,0,-1,0,0,0, 0,0,0), 
+  'N.+ vs C.+ (F2)' = c(0,0,0,1,0,0,0,-1,0,0, 0,0,0), 
+  'N.- vs C.- (F2)' = c(0,0,0,0,0,0,0,0,0,1, 0,-1,0), 
+  'N.+ vs C.+ (F3)' = c(0,0,0,0,1,0,0,0,-1,0, 0,0,0), 
+  'N.- vs C.- (F3)' = c(0,0,0,0,0,0,0,0,0,0, 1,0,-1)) #All Correct.
+gluc.comps <- glht(gluc.lm, gluc.contrast.matrix)
+H1.gluc <- summary(gluc.comps)
+
+#H2 (F1) Test:
+Kno_antibiotic <- rep(0,length(gluc.lm$coefficients))
+names(Kno_antibiotic) <- names(gluc.lm$coefficients)
+Kantibiotic <- rep(0,length(gluc.lm $coefficients))
+names(Kantibiotic) <- names(gluc.lm $coefficients)
+Kantibiotic["(Intercept)"] <- 1 
+Kantibiotic["GenTreatmentN"] <- -1 
+Kno_antibiotic["Antibioticno antibiotic"] <- 1 
+Kno_antibiotic["GenTreatmentN:Antibioticno antibiotic"] <- -1 
+Ka <- matrix(Kno_antibiotic,1) - matrix(Kantibiotic,1)
+H2F1.gluc <- summary(glht(gluc.lm, linfct = Ka))
+H2F1.gluc
+#Is the effect smaller in antibiotics? #Yes. 
+abs(gluc.lm$coefficients["Antibioticno antibiotic"] -
+        gluc.lm$coefficients["GenTreatmentN:Antibioticno antibiotic"]) > 
+abs(gluc.lm$coefficients["(Intercept)"] -
+      gluc.lm$coefficients["GenTreatmentN"]) 
+
+#H2 (F2) Test:
+Kno_antibiotic <- rep(0,length(gluc.lm$coefficients))
+names(Kno_antibiotic) <- names(gluc.lm$coefficients)
+Kantibiotic <- rep(0,length(gluc.lm $coefficients))
+names(Kantibiotic) <- names(gluc.lm $coefficients)
+Kantibiotic["GenTreatmentN:GenerationF2"] <- 1 
+Kantibiotic["GenerationF2"] <- -1 
+Kno_antibiotic["GenTreatmentN:Antibioticno antibiotic:GenerationF2"] <- 1 
+Kno_antibiotic["Antibioticno antibiotic:GenerationF2"] <- -1 
+Ka <- matrix(Kno_antibiotic,1) - matrix(Kantibiotic,1)
+H2F2.NF.Ta <-summary(glht(gluc.lm, linfct = Ka))
+H2F2.NF.Ta
+#Is the effect smaller in antibiotics?
+abs(gluc.lm$coefficients["Antibioticno antibiotic:GenerationF2"] -
+        gluc.lm$coefficients["GenTreatmentN:Antibioticno antibiotic:GenerationF2"]) >
+abs(gluc.lm$coefficients["GenerationF2"] -
+      gluc.lm$coefficients["GenTreatmentN:GenerationF2"])  
+
+#H2 (F3) Test:
+Kno_antibiotic <- rep(0,length(gluc.lm$coefficients))
+names(Kno_antibiotic) <- names(gluc.lm$coefficients)
+Kantibiotic <- rep(0,length(gluc.lm $coefficients))
+names(Kantibiotic) <- names(gluc.lm $coefficients)
+Kantibiotic["GenTreatmentN:GenerationF3"] <- 1 
+Kantibiotic["GenerationF3"] <- -1 
+Kno_antibiotic["GenTreatmentN:Antibioticno antibiotic:GenerationF3"] <- 1 
+Kno_antibiotic["Antibioticno antibiotic:GenerationF3"] <- -1 
+Ka <- matrix(Kno_antibiotic,1) - matrix(Kantibiotic,1)
+H2F3.NF.Ta <-summary(glht(gluc.lm, linfct = Ka))
+H2F3.NF.Ta
+#Is the effect smaller in antibiotics?
+abs(gluc.lm$coefficients["Antibioticno antibiotic:GenerationF3"] -
+        gluc.lm$coefficients["GenTreatmentN:Antibioticno antibiotic:GenerationF3"]) >
+abs(gluc.lm$coefficients["GenerationF3"] -
+      gluc.lm$coefficients["GenTreatmentN:GenerationF3"])
+```
+  
+Make results tables w/ Experiment Wide FDR Corrections:
+```{r, H1H2 Results Table, warning=FALSE,message=FALSE,echo=FALSE}
+H1.results.df <- rbind(tidy(H1.tag) %>% 
+                    mutate(metabolite = "TAG") %>% mutate(sex = "female") %>% mutate(treatment = "N") %>% 
+                    mutate(antibiotic = ifelse(grepl("- ", lhs), "no antibiotic", "antibiotic")) %>% 
+                    mutate(generation = ifelse(grepl("F1", lhs), "F1", ifelse(grepl("F2", lhs), "F2", "F3"))),
+                tidy(H1.glyc) %>% 
+                    mutate(metabolite = "Glycogen") %>% mutate(sex = "female") %>% mutate(treatment = "N") %>% 
+                    mutate(antibiotic = ifelse(grepl("- ", lhs), "no antibiotic", "antibiotic")) %>% 
+                    mutate(generation = ifelse(grepl("F1", lhs), "F1", ifelse(grepl("F2", lhs), "F2", "F3"))),
+                tidy(H1.treh) %>% 
+                    mutate(metabolite = "Trehalose") %>% mutate(sex = "female") %>% mutate(treatment = "N") %>% 
+                    mutate(antibiotic = ifelse(grepl("- ", lhs), "no antibiotic", "antibiotic")) %>% 
+                    mutate(generation = ifelse(grepl("F1", lhs), "F1", ifelse(grepl("F2", lhs), "F2", "F3"))),
+                tidy(H1.gluc) %>% 
+                    mutate(metabolite = "Glucose") %>% mutate(sex = "female") %>% mutate(treatment = "N") %>% 
+                    mutate(antibiotic = ifelse(grepl("- ", lhs), "no antibiotic", "antibiotic")) %>% 
+                    mutate(generation = ifelse(grepl("F1", lhs), "F1", ifelse(grepl("F2", lhs), "F2", "F3"))))
+H1.results.df <- H1.results.df %>% mutate(pAdj = p.adjust(p.value, method = "fdr")) 
+H1.results.df <- H1.results.df %>% mutate(significance = symnum(pAdj, corr = FALSE, na = FALSE, cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1), symbols = c("***", "**", "*", ".", " ")))
+H1.results.df <- H1.results.df[,-2]
+colnames(H1.results.df)[1] <- "comparison" 
+H1.results.df <- H1.results.df[c("metabolite", "comparison", "treatment", "antibiotic", "sex", "generation", "estimate", "std.error", "statistic", "p.value", "pAdj", "significance")]
+write.csv(H1.results.df, file = "SuppTable1_H1Results.csv")
+
+
+H2.results.df <- rbind(tidy(H2F1.tag) %>% mutate(comparison = "F1 TAG Female (N-)-(C-) vs. (N+)-(C+)") %>%
+                      mutate(metabolite = "TAG") %>% mutate(sex = "female") %>% 
+                      mutate(treatment = "N") %>% mutate(generation = "F1"),
+                 tidy(H2F2.tag) %>% mutate(comparison = "F2 TAG Female (N-)-(C-) vs. (N+)-(C+)") %>%
+                      mutate(metabolite = "TAG") %>% mutate(sex = "female") %>% 
+                      mutate(treatment = "N") %>% mutate(generation = "F2"),
+                 tidy(H2F3.tag) %>% mutate(comparison = "F3 TAG Female (N-)-(C-) vs. (N+)-(C+)") %>%
+                      mutate(metabolite = "TAG") %>% mutate(sex = "female") %>% 
+                      mutate(treatment = "N") %>% mutate(generation = "F3"),
+                 tidy(H2F1.glyc) %>% mutate(comparison = "F1 Glycogen Female (N-)-(C-) vs. (N+)-(C+)") %>%
+                      mutate(metabolite = "Glycogen") %>% mutate(sex = "female") %>% 
+                      mutate(treatment = "N") %>% mutate(generation = "F1"),
+                 tidy(H2F2.glyc) %>% mutate(comparison = "F2 Glycogen Female (N-)-(C-) vs. (N+)-(C+)") %>%
+                      mutate(metabolite = "Glycogen") %>% mutate(sex = "female") %>% 
+                      mutate(treatment = "N") %>% mutate(generation = "F2"),
+                 tidy(H2F3.glyc) %>% mutate(comparison = "F3 Glycogen Female (N-)-(C-) vs. (N+)-(C+)") %>%
+                      mutate(metabolite = "Glycogen") %>% mutate(sex = "female") %>% 
+                      mutate(treatment = "N") %>% mutate(generation = "F3"),
+                 tidy(H2F1.treh) %>% mutate(comparison = "F1 Trehalose Female (N-)-(C-) vs. (N+)-(C+)") %>%
+                      mutate(metabolite = "Trehalose") %>% mutate(sex = "female") %>% 
+                      mutate(treatment = "N") %>% mutate(generation = "F1"),
+                 tidy(H2F2.treh) %>% mutate(comparison = "F2 Trehalose Female (N-)-(C-) vs. (N+)-(C+)") %>%
+                      mutate(metabolite = "Trehalose") %>% mutate(sex = "female") %>% 
+                      mutate(treatment = "N") %>% mutate(generation = "F2"),
+                 tidy(H2F3.treh) %>% mutate(comparison = "F3 Trehalose Female (N-)-(C-) vs. (N+)-(C+)") %>%
+                      mutate(metabolite = "Trehalose") %>% mutate(sex = "female") %>% 
+                      mutate(treatment = "N") %>% mutate(generation = "F3"),
+                 tidy(H2F1.glyc) %>% mutate(comparison = "F1 Glucose Female (N-)-(C-) vs. (N+)-(C+)") %>%
+                      mutate(metabolite = "Glucose") %>% mutate(sex = "female") %>% 
+                      mutate(treatment = "N") %>% mutate(generation = "F1"),
+                 tidy(H2F2.glyc) %>% mutate(comparison = "F2 Glucose Female (N-)-(C-) vs. (N+)-(C+)") %>%
+                      mutate(metabolite = "Glucose") %>% mutate(sex = "female") %>% 
+                      mutate(treatment = "N") %>% mutate(generation = "F2"),
+                 tidy(H2F3.glyc) %>% mutate(comparison = "F3 Glucose Female (N-)-(C-) vs. (N+)-(C+)") %>%
+                      mutate(metabolite = "Glucose") %>% mutate(sex = "female") %>% 
+                      mutate(treatment = "N") %>% mutate(generation = "F3"))
+H2.results.df <- H2.results.df %>% mutate(pAdj = p.adjust(p.value, method = "fdr")) 
+H2.results.df <- H2.results.df %>% mutate(significance = symnum(pAdj, corr = FALSE, na = FALSE, cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1), symbols = c("***", "**", "*", ".", " ")))
+H2.results.df <- H2.results.df[c("metabolite", "comparison", "treatment", "sex", "generation", "estimate", "std.error", "statistic", "p.value", "pAdj", "significance")]
+write.csv(H2.results.df, file = "SuppTable2_H2Results.csv")        
+```
+  
+Results show significant effects in triglycerides, which we create figures for below. 
+  
+## Create Phenotype Plot(s)
+    
+First create a data frame of the results:
+```{r,Phenotype Results Data Frame, warning=FALSE, message=FALSE}
+##Triglycerides:
+fat <- dat[,-c(7,8,9,10)]
+colnames(fat)[7] <- "weight"
+
+#TAG
+TaW <- data.frame(Generation=character, diet=character(),antibiotic=character(), sex=character(), TAG=numeric())
+for(i in unique(fat$Generation))
+  for(j in unique(fat$GenTreatment))
+    for(k in unique(fat$Antibiotic))
+      for(l in unique(fat$Sex)){
+        temp <- subset(fat, Generation == i & GenTreatment == j & Antibiotic == k & Sex == l)
+        temp$TagWt <- ((subset(fat, Generation == i & GenTreatment == j & Antibiotic == k & Sex ==l)$TAG)/(subset(fat, Generation == i & GenTreatment == j & Antibiotic == k & Sex == l)$weight))
+        TaW <- rbind(TaW, temp)}
+```
+  
+### Triglycerides: H1 and H2
+```{r, H1H2 TAG Plot, warning=FALSE, message=FALSE}
+#RAW TAG - N, female
+RawF1.N.Fem.TAG.p <- ggplot(subset(TaW, Generation=="F1"), aes(Antibiotic, TagWt, fill=GenTreatment)) + scale_fill_manual("Treatment", values=c("#FF9966", "#33CCFF")) + geom_boxplot(outlier.colour="gray") + theme_bw() + coord_cartesian(ylim = c(0, 22.5)) + ggtitle("F1") + xlab("") + ylab("") + theme(legend.key.size =  unit(1, "in"), legend.text = element_text(size=18), legend.title = element_text(size=18, face="bold"), title=element_text(size=18, face="bold"), axis.title=element_text(size=16), axis.text.x=element_text(size=18, vjust=0.5, face="bold"), axis.text.y=element_text(size=22), plot.title = element_text(size=28, hjust=0.5))
+RawF1.N.Fem.TAG.p <- RawF1.N.Fem.TAG.p + geom_signif(annotation="", y_position=16, xmin=0.8, xmax=1.2, tip_length = c(0.015, 0.015), textsize = 12, size=0.75) + geom_signif(annotation="***", y_position=16, xmin=1.80, xmax=2.2, tip_length = c(0.015, 0.015), textsize = 12, size=0.75) + geom_signif(annotation="***", y_position=20.75, xmin=1, xmax=2, tip_length = c(0.055, 0.055), textsize = 12, size=0.75) + geom_segment(aes(x=0.75, xend=1.25, y=19.65, yend=19.65)) + geom_segment(aes(x=1.75, xend=2.25, y=19.65, yend=19.65)) + annotate("text", 2.3, y = 17.5, label = "H1", cex=5) + annotate("text", 1.8, y = 22.25, label = "H2", cex=5)
+RawF1.N.Fem.TAG.p
+
+RawF2.N.Fem.TAG.p <- ggplot(subset(TaW, Generation=="F2"), aes(Antibiotic, TagWt, fill=GenTreatment)) + scale_fill_manual(values=c("#FF9966", "#33CCFF")) + geom_boxplot(outlier.colour="gray") + theme_bw() + coord_cartesian(ylim = c(0, 22.5)) + ggtitle("F2") + xlab("") + ylab("") + theme(title=element_text(size=18, face="bold"), axis.title=element_text(size=16), axis.text.x=element_text(size=18, vjust=0.5, face="bold"), axis.text.y=element_text(size=22), plot.title = element_text(size=28, hjust=0.5))
+RawF2.N.Fem.TAG.p <- RawF2.N.Fem.TAG.p + geom_signif(annotation="", y_position=12.5, xmin=0.8, xmax=1.2, tip_length = c(0.015, 0.015), textsize = 12, size=0.75) + geom_signif(annotation="**", y_position=12.5, xmin=1.80, xmax=2.2, tip_length = c(0.015, 0.015), textsize = 12, size=0.75) + geom_signif(annotation="*", y_position=20.75, xmin=1, xmax=2, tip_length = c(0.055, 0.055), textsize = 12, size=0.75) + geom_segment(aes(x=0.75, xend=1.25, y=19.65, yend=19.65)) + geom_segment(aes(x=1.75, xend=2.25, y=19.65, yend=19.65)) + annotate("text", 2.2, y = 14, label = "H1", cex=5) + annotate("text", 1.7, y = 22.25, label = "H2", cex=5)
+RawF2.N.Fem.TAG.p
+
+RawF3.N.Fem.TAG.p <- ggplot(subset(TaW, Generation=="F3"), aes(Antibiotic, TagWt, fill=GenTreatment)) + scale_fill_manual(values=c("#FF9966", "#33CCFF")) + geom_boxplot(outlier.colour="gray") + theme_bw() + coord_cartesian(ylim = c(0, 22.5)) + ggtitle("F3") + xlab("") + ylab("") + theme(title=element_text(size=18, face="bold"), axis.title=element_text(size=16), axis.text.x=element_text(size=18, vjust=0.5, face="bold"), axis.text.y=element_text(size=22), plot.title = element_text(size=28, hjust=0.5))
+RawF3.N.Fem.TAG.p <- RawF3.N.Fem.TAG.p + geom_signif(annotation="", y_position=12.5, xmin=0.8, xmax=1.2, tip_length = c(0.015, 0.015), textsize = 12, size=0.75) + geom_signif(annotation="***", y_position=12.5, xmin=1.80, xmax=2.2, tip_length = c(0.015, 0.015), textsize = 12, size=0.75) + geom_signif(annotation="***", y_position=20.75, xmin=1, xmax=2, tip_length = c(0.055, 0.055), textsize = 12, size=0.75) + geom_segment(aes(x=0.75, xend=1.25, y=19.65, yend=19.65)) + geom_segment(aes(x=1.75, xend=2.25, y=19.65, yend=19.65)) + annotate("text", 2.3, y = 14, label = "H1", cex=5) + annotate("text", 1.8, y = 22.25, label = "H2", cex=5)
+RawF3.N.Fem.TAG.p
+
+g_legend<-function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)}
+mylegend<-g_legend(RawF1.N.Fem.TAG.p)
+
+GenNFTag <- grid.arrange(arrangeGrob(RawF1.N.Fem.TAG.p + theme(legend.position="none"), RawF2.N.Fem.TAG.p + theme(legend.position="none"), RawF3.N.Fem.TAG.p + theme(legend.position="none"), ncol=3, top=textGrob("Triglycerides", gp = gpar(fontface=2, fontsize=40)), bottom=textGrob("Generations Following Horizontal Transmission", gp = gpar(fontface=1, fontsize=25)), left=textGrob("Triglycerides/Weight (µg)", rot=90, gp = gpar(fontface=1, fontsize=35))), mylegend, ncol=2, widths=c(10,2))
+
+ggsave("Triglycerides.pdf", GenNFTag, device="pdf", width = 20, height = 7, units = "in")
+
+``` 
+  
+  
+### Triglyceride Transgenerational Patterns
+```{r,TAG trends plot, warning=FALSE, message=FALSE}
+Pdat <- read.csv("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/PhenotypeData.csv")
+
+#Clean up so only data needed is present
+fat1 <- Pdat[,-c(7,8,9,10)]
+colnames(fat1)[7] <- "weight"
+fatNoAb <- subset(fat1, Antibiotic != "antibiotic")
+
+#Create TagWt
+TaWAllGen <- data.frame(Generation=character, GenTreatment=character(), Antibiotic=character(), Sex=character(), TAG=numeric(), weight=numeric())
+for(i in unique(fatNoAb$Generation))
+  for(j in unique(fatNoAb$GenTreatment)){
+        temp <- subset(fatNoAb, Generation == i & GenTreatment == j)
+        temp$TagWt <- ((subset(fatNoAb, Generation == i & GenTreatment == j)$TAG)/(subset(fatNoAb, Generation == i & GenTreatment == j)$weight))
+        TaWAllGen <- rbind(TaWAllGen, temp)}
+
+
+#Determine Means for each generation and GenTreatment
+by_GenTreatGeneration <- TaWAllGen %>% group_by(Generation, GenTreatment) %>% summarize(ave_TagWt = mean(TagWt))
+
+#Compute Log2FoldChange for TAGs for each generation and treatment
+Log2Fold <- data.frame(Generation=character, GenTreatment=character(), Antibiotic=character(), Sex=character(), TAG=numeric(), weight=numeric())
+for(i in unique(by_GenTreatGeneration$Generation)){
+        temp <- subset(by_GenTreatGeneration, Generation == i)
+        temp$Log2FoldChange <- (log2((subset(by_GenTreatGeneration, Generation == i )$GenTreatment=="N")/(subset(by_GenTreatGeneration, Generation == i )$GenTreatment=="C")))
+        Log2Fold <- rbind(Log2Fold, temp)}
+```
+   
+  
+    
+# 16S rRNA Analysis
+## Import Files  
 1) metadata file (provides 16s sample details (i.e. treatment, generations))  
 2) feature table (this is the sequencing output file after qiime processing)  
 3) taxonomy file (gives taxanomic names to unique amplicon sequence variants)  
 4) tree (helps construct the phylogenetic tree)
-```{r}
+```{r,Import Microbiome Data, warning=FALSE,message=FALSE}
 taxonomy<- read.delim("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/16s%20rRNA%20HiSeq%20Analysis/Taxonomy.tsv") 
 names(taxonomy) <- c("row", "tax", "Confidence")
 row.names(taxonomy) <-taxonomy[[1]]
@@ -42,34 +522,28 @@ taxonomy <-  separate(taxonomy, tax, c("D0","D1", "D2", "D3", "D4", "D5", "D6", 
 taxonomy <- taxonomy[,c(1:6)]
 taxmat <- as.matrix(taxonomy)
 TAX = tax_table(taxmat) 
-
 #import metadata
 metatable <- read.delim("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/16s%20rRNA%20HiSeq%20Analysis/Metatable.txt")
 row.names(metatable) <- metatable[[1]]
 metatable<- metatable[,(-1)]
 META <- sample_data(metatable)
-
 #Import Phylogenetic tree (rooted, exported from qiime2)
 TREE <- read_tree("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/16s%20rRNA%20HiSeq%20Analysis/tree.nwk")
-
 #Import feature (sequence variant) table
 Svtab <- read.delim("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/16s%20rRNA%20HiSeq%20Analysis/FeatureTable.txt")
 row.names(Svtab)<-Svtab[[1]] #make OTU ID the row names
 Svtab<-Svtab[,-(1)] # remove OTU ID column
 fmat <- as.matrix(Svtab)
 OTU = otu_table(fmat, taxa_are_rows = TRUE)
-
 #create phyloseq object
 ps <- phyloseq(OTU, TAX, META, TREE) 
 ```
   
-  
-##Visualize Raw Data:
+## Visualize Raw Data:
 Generate a prevelance table (number of samples each taxa occurs in) for each taxa.
-```{r Prevalence Plot Unfiltered}
+```{r, Prevalence Plot Unfiltered, warning=FALSE,message=FALSE}
 ps <- subset_samples(ps, Treatment != "HSD")
 ps
-
 prevelancedf = apply(X = otu_table(ps),
                  MARGIN = 1,
                  FUN = function(x){sum(x > 0)})
@@ -77,18 +551,16 @@ prevelancedf = apply(X = otu_table(ps),
 prevelancedf = data.frame(Prevalence = prevelancedf,
                       TotalAbundance = taxa_sums(ps),
                       tax_table(ps))
-
 #Phylum Level Prevalence Table
 plyr::ddply(prevelancedf, "D1", function(df1){
   data.frame(mean_prevalence=mean(df1$Prevalence),total_abundance=sum(df1$TotalAbundance,na.rm = T),stringsAsFactors = F)
   })
 ```
   
-  
-##Preprocessing and Filtering:
-###Prefilter 
+## Preprocessing and Filtering:
+### Prefilter 
 Remove ambiguous phyla (NA), keep only bacterial OTUs, and remove taxa with less than 1 read (singletons) and those that cannot be part of the microbiome
-```{r Prefilter}
+```{r, Prefilter, warning=FALSE,message=FALSE}
 ps0 = subset_taxa(ps, D0=="D_0__Bacteria")
 ps0 <- subset_taxa(ps0, D5!="NA") #remove NAs
 ps0 <- filter_taxa(ps0, function (x) {sum(x > 0) > 1}, prune=TRUE)
@@ -96,9 +568,8 @@ ps0 = subset_taxa(ps0, !D1 %in% c("D_1__Cyanobacteria"))
 ps0
 ```
   
-  
 Visualize Prefiltered Data
-```{r Prefilter Results}
+```{r, Prefilter Results, warning=FALSE,message=FALSE}
 #generate a prevelance table (number of samples each taxa occurs in) for each taxa using the following code:
 prevdf = apply(X = otu_table(ps0),
                MARGIN = ifelse(taxa_are_rows(ps0), yes = 1, no = 2),
@@ -107,20 +578,17 @@ prevdf = apply(X = otu_table(ps0),
 prevdf = data.frame(Prevalence = prevdf,
                     TotalAbundance = taxa_sums(ps0),
                     tax_table(ps0))
-
 #Phylum Level
 plyr::ddply(prevdf, "D1", function(df1){
   data.frame(mean_prevalence=mean(df1$Prevalence),total_abundance=sum(df1$TotalAbundance,na.rm = T),stringsAsFactors = F)
   })
-
 #Genus Level
 plyr::ddply(prevdf, "D5", function(df1){
   data.frame(mean_prevalence=mean(df1$Prevalence),total_abundance=sum(df1$TotalAbundance,na.rm = T),stringsAsFactors = F)
   })
 ```
   
-  
-```{r Prefilter Plot}
+```{r,Prefilter Plot, warning=FALSE,message=FALSE}
 ###Plot 0% filtered data and visualize a 5%-20% threshold (Genus Level)
 FilterPlot0 <- ggplot(prevdf, aes(TotalAbundance, Prevalence / nsamples(ps0),color=D5)) +
   geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) +  
@@ -135,104 +603,51 @@ ggsave("GenusLevelFilterPlot0.pdf", FilterPlot0, width = 30, height = 30, units 
 FilterPlot0
 ```
   
-  
-###Filtering
+### Filtering
 Investigate low prevelance/abundance genera and subset them out.
 Define prevalence threshold
-```{r Filtering}
+```{r, Filtering, warning=FALSE,message=FALSE}
 prevalenceThreshold = 0.1 * nsamples(ps0)
 prevalenceThreshold
 ```
   
-  
 Subset the remaining genera by prevalence
-```{r Filtering and Subsetting by Prevalence}
+```{r, Filtering and Subsetting by Prevalence, warning=FALSE,message=FALSE}
 keepTaxa = rownames(prevdf)[(prevdf$Prevalence >= prevalenceThreshold)]
 length(keepTaxa)
-
 psF = prune_taxa(keepTaxa, ps0)
 psF
 ```
   
 Compositional Plot 
-```{r Compositional Plot}
+```{r, Compositional Plot, warning=FALSE,message=FALSE}
 psmeltF <- psmelt(psF)
-
 abundantClasses <- psmeltF %>% group_by(D5) %>% summarize(frac = n() / nrow(.)) %>% na.omit() %>% pull(D5)
-
 psmeltF %>% filter(D5 %in% abundantClasses) %>% ggplot(aes_string(x = "Generation", y = "Abundance", fill = "D5")) + geom_bar(stat = "identity", position = "fill") + theme(axis.text.x = element_text(angle = 0, hjust = 0), legend.text=element_text(size=rel(1))) + scale_fill_discrete(name="Genera")  + scale_y_sqrt() + ylab(expression(sqrt("Fraction of Community"))) + xlab("Generation") + facet_grid(SampleType~Treatment, scales="free")
-
 ggsave("Filtered Data Barplot (Genus Level).pdf", height = 7, width = 12)
 ```
   
+As media samples are homogenous throughout, further analyses on media is not warranted.   
   
-Subset Data for Analyses:
-```{r Subset Gut vs Media}
+Subset Gut Data for further analyses:
+```{r, Subset Gut vs Media, warning=FALSE,message=FALSE}
 psF.gut <- tax_glom(subset_samples(psF, SampleType=="Gut"), taxrank = "D5") 
-psF.media <- tax_glom(subset_samples(psF, SampleType=="Media"), taxrank = "D5")
 ```
   
-  
-Gut Only Compositional Plot (for reference)
-```{r gut Only Compositional Plot}
-psmeltF.gut <- psmelt(psF.gut)
-
-abundantClasses.gut <- psmeltF.gut %>% group_by(D5) %>% summarize(frac = n() / nrow(.)) %>% na.omit() %>% pull(D5)
-
-psmeltF.gut %>% filter(D5 %in% abundantClasses.gut) %>% ggplot(aes_string(x = "Generation", y = "Abundance", fill = "D5")) + geom_bar(stat = "identity", position = "fill") + theme(axis.text.x = element_text(angle = 0, hjust = 0), legend.text=element_text(size=rel(1))) + scale_fill_discrete(name="Genera")  + scale_y_sqrt() + ylab(expression(sqrt("Fraction of Community"))) + xlab("Generation") + facet_grid(~Treatment, scales="free")
-
-ggsave("Filtered Gut Barplot (Genus Level).pdf", height = 5, width = 12)
-```
-  
-  
-Media Only Compositional Plot (for reference)
-```{r Media Only Compositional Plot}
-psmeltF.media <- psmelt(psF.media)
-
-abundantClasses.media <- psmeltF.media %>% group_by(D5) %>% summarize(frac = n() / nrow(.)) %>% na.omit() %>% pull(D5)
-
-psmeltF.media %>% filter(D5 %in% abundantClasses.media) %>% ggplot(aes_string(x = "Generation", y = "Abundance", fill = "D5")) + geom_bar(stat = "identity", position = "fill") + theme(axis.text.x = element_text(angle = 0, hjust = 0), legend.text=element_text(size=rel(1))) + scale_fill_discrete(name="Genera")  + scale_y_sqrt() + ylab(expression(sqrt("Fraction of Community"))) + xlab("Generation") + facet_grid(~Treatment, scales="free")
-
-ggsave("Filtered Media Barplot (Genus Level).pdf", height = 5, width = 12)
-```
-  
-  
-##Alpha diversity
+## Alpha diversity
 Gut Samples:
-```{r Gut Alpha Diversity}
+```{r, Gut Alpha Diversity, warning=FALSE, message=FALSE}
 divnet_gut <-  divnet(tax_glom(psF.gut, taxrank = "D5"), X = "GenTreat")
-
 metatable1 <- read.delim("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/16s%20rRNA%20HiSeq%20Analysis/Metatable.txt")
 colnames(metatable1)[1] <- "sample_names"
-
 divnet_gut_summary <- divnet_gut$shannon %>% summary %>% left_join(metatable1) %>% group_by(TypeGenTreat) %>% summarize(alpha = estimate[1], lower = lower[1], upper = upper[1], SampleType = SampleType[1], Generation = Generation[1], Treatment = Treatment[1]) 
-
 divnet_gut_summary %>% ggplot(aes(Treatment, alpha, color = Treatment)) + geom_point() + geom_linerange(aes(ymin = lower, ymax = upper)) + facet_grid(Generation~Treatment, scales = "free") + theme_minimal() + theme(axis.text.x=element_blank()) + ggtitle("Alpha Diversity (Gut Samples)") + xlab("Treatment") + ylab("Shannon Diversity (alpha)") + guides(color = F)
-
 ggsave("Alpha Diversity (gut).pdf", height = 10, width = 7)
 ```
-  
-  
-Media Samples:
-```{r Media Alpha Diversity}
-divnet_media <-  divnet(tax_glom(psF.media, taxrank = "D5"), X = "GenTreat")
-
-metatable1 <- read.delim("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/16s%20rRNA%20HiSeq%20Analysis/Metatable.txt")
-colnames(metatable1)[1] <- "sample_names"
-
-divnet_media_summary <- divnet_media$shannon %>% summary %>% left_join(metatable1) %>% group_by(TypeGenTreat) %>% summarize(alpha = estimate[1], lower = lower[1], upper = upper[1], SampleType = SampleType[1], Generation = Generation[1], Treatment = Treatment[1]) 
-
-divnet_media_summary %>% ggplot(aes(Treatment, alpha, color = Treatment)) + geom_point() + geom_linerange(aes(ymin = lower, ymax = upper)) + facet_grid(Generation~Treatment, scales = "free") + ggtitle("Alpha Diversity (Media)") + theme_minimal() + theme(axis.text.x=element_blank()) + xlab("Treatment") + ylab("Shannon Diversity (alpha)") + guides(color = F)
-
-ggsave("Alpha Diversity (media).pdf", height = 10, width = 7)
-```
-  
-  
-  
-##Examine detected disperson differences
-###Using DESeq2
+   
+## Examine detected disperson differences using DESeq2
 Due to plate set up during processing of microbiome genes for sequencing, F0/F1 has been separated from F2/F3 to help prevent potentially biasing batch effect analysis errors.
-```{r DeSeq2 Gut Analysis}
+```{r, DeSeq2 Gut Analysis, warning=FALSE,message=FALSE} 
 #F0/F1 Data
 psF.gut01 <- subset_samples(psF.gut, Generation %in% c("F0", "F1"))
 ddse01 <- phyloseq_to_deseq2(psF.gut01, ~GenTreat+0)
@@ -241,17 +656,17 @@ idx <- rowSums(counts(ddse01, normalized=TRUE) >= 5 ) >= 5 # additional abundanc
 ddse1 <- DESeq(ddse01[idx,], test="Wald", fitType="local")
 resultsNames(ddse1)
 #Contrasts:
-res0 <- results(ddse1, contrast=c("GenTreat","F0NSD","F0CD")) #numerator (control) , denominator(nsd)
+res0 <- results(ddse1, contrast=c("GenTreat","F0NSD","F0CD")) #numerator (NSD) , denominator(CD), so + log2foldchange=increase in NSD bacteria, - is decrease in nsd bacteria
 res1 <- results(ddse1, contrast=c("GenTreat","F1NSD","F1CD"))
 
 #F2/F3 Data
 psF.gut23 <- subset_samples(psF.gut, Generation %in% c("F2", "F3"))
 ddse23 <- phyloseq_to_deseq2(psF.gut23, ~GenTreat+0)
 ddse23 <- estimateSizeFactors(ddse23)
-idx <- rowSums(counts(ddse23, normalized=TRUE) >= 5 ) >= 5 # additional abundance-based filtering, must have more than five counts in more than five samples in the design
+idx <- rowSums(counts(ddse23, normalized=TRUE) >= 5 ) >= 5 
 ddse2 <- DESeq(ddse23[idx,], test="Wald", fitType="local")
 resultsNames(ddse2)
-#Contrasts:
+#Contrasts: 
 res2 <- results(ddse2, contrast=c("GenTreat","F2NSD","F2CD")) 
 res3 <- results(ddse2, contrast=c("GenTreat","F3NSD","F3CD"))
 
@@ -259,7 +674,10 @@ table(res0$padj < 0.05)
 table(res1$padj < 0.05)
 table(res2$padj < 0.05)
 table(res3$padj < 0.05)
-
+```
+  
+### Plot microbiome transgenerational trends  
+```{r, Microbiome Plot, warning=FALSE,message=FALSE}
 res0$genus <- gsub("D_5__", "", tax_table(psF.gut)[rownames(res0)])
 res1$genus <- gsub("D_5__", "", tax_table(psF.gut)[rownames(res1)])
 res2$genus <- gsub("D_5__", "", tax_table(psF.gut)[rownames(res2)])
@@ -272,136 +690,8 @@ bind_rows(as.data.frame(res0)[,c("genus.D5", "log2FoldChange", "padj")],
           .id = "generations") %>% 
   mutate(generations = as.numeric(generations) - 1, sig = ifelse(padj<0.05, 1, .5)) %>%
   ggplot(aes(generations, log2FoldChange, color = genus.D5, alpha = sig, group = genus.D5)) + geom_point(aes(size=5)) + geom_line(alpha=0.5) + guides(size = "none", alpha = "none")
-
 ```
   
-  
-Table and Plot Significant Results
-```{r}
-phenotypes <- read_csv("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/Phenotype%20Analysis/phenotype_data") %>% filter(! grepl("\\+", Treatment) & Sex == "female") %>% mutate(Treatment = factor(Treatment, labels = c("CD", "NSD"))) %>% left_join(psF.gut@sam_data, ., by = c("Generation", "Treatment", "SampleNumber" = "Sample")) %>% select(Plate, Generation, Treatment, GenTreat, TransGen, Fat.Weight, TAG) %>% mutate (TAGwt = TAG/Fat.Weight)
-
-psF.gut@sam_data$TAGwt <- phenotypes$TAGwt
-psF.gutMet <- subset_samples(psF.gut,  Generation %in% c("F1", "F2", "F3"))
-ddseMet <- phyloseq_to_deseq2(psF.gutMet, ~ TAGwt )
-ddseMet <- estimateSizeFactors(ddseMet)
-idx <- rowSums(counts(ddseMet, normalized=TRUE) >= 5 ) >= 5
-ddseMet2 <- DESeq(ddseMet[idx,], test="Wald", fitType="local")
-resultsNames(ddseMet2)
-table(results(ddseMet2, name="TAGwt")$padj<0.05)
-(tagsig <- results(ddseMet2, name="TAGwt")[results(ddseMet2, name="TAGwt")$padj<0.05,])
-tax_table(psF.gut)[rownames(tagsig),6]
-metCounts <- data.table::rbindlist(lapply(1:3, function(x) {  plotCounts(ddseMet, gene=rownames(tagsig)[x], intgroup="TAGwt",returnData=TRUE) %>% mutate(taxon = as.vector(gsub("D_5__","", tax_table(psF.gut)[rownames(tagsig)[x],6])), Generation = colData(ddseMet2)$Generation, Treatment = colData(ddseMet2)$Treatment) })) 
-metCounts %>% ggplot(aes(count, TAGwt, color=Generation, shape=Treatment ))+geom_point()+scale_x_log10(limit=c(1,NA))+facet_grid(taxon~.)+stat_smooth(method="lm",aes(group=0))  
-```
-
-###Using Permutation Test
-```{r Permutation Analyses Gut}
-#F0
-psF.gut.F0 <- tax_glom(subset_samples(psF.gut, Generation=="F0"), taxrank = "D5")  
-gut.F0 = UniFrac(psF.gut.F0)
-#tests homogeneity of dispersion among groups (https://www.researchgate.net/post/Betadisper_and_adonis_in_R_Am_I_interpreting_my_output_correctly)
-gut.F0.adonis <- adonis2(gut.F0 ~ Treatment, as(sample_data(psF.gut.F0), "data.frame"), permutations = 10000, strata = line)
-gut.F0.adonis
-#tests for differences between groups
-anova(betadisper(gut.F0, sample_data(psF.gut.F0)$Treatment))
-
-#F1
-psF.gut.F1 <- tax_glom(subset_samples(psF.gut, Generation=="F1"), taxrank = "D5")  
-gut.F1 = UniFrac(psF.gut.F1)
-#tests homogeneity of dispersion among groups
-gut.F1.adonis <- adonis2(gut.F1 ~ Treatment, as(sample_data(psF.gut.F1), "data.frame"), permutations = 10000, strata = line)
-gut.F1.adonis
-#tests for differences between groups
-anova(betadisper(gut.F1, sample_data(psF.gut.F1)$Treatment))
-
-#F2
-psF.gut.F2 <- tax_glom(subset_samples(psF.gut, Generation=="F2"), taxrank = "D5")  
-gut.F2 = UniFrac(psF.gut.F2)
-#tests homogeneity of dispersion among groups (https://www.researchgate.net/post/Betadisper_and_adonis_in_R_Am_I_interpreting_my_output_correctly)
-gut.F2.adonis <- adonis2(gut.F2 ~ Treatment, as(sample_data(psF.gut.F2), "data.frame"), permutations = 10000, strata = line)
-gut.F2.adonis
-#tests for differences between groups
-anova(betadisper(gut.F2, sample_data(psF.gut.F2)$Treatment))
-
-#F3
-psF.gut.F3 <- tax_glom(subset_samples(psF.gut, Generation=="F3"), taxrank = "D5")  
-gut.F3 = UniFrac(psF.gut.F3)
-#tests homogeneity of dispersion among groups (https://www.researchgate.net/post/Betadisper_and_adonis_in_R_Am_I_interpreting_my_output_correctly)
-gut.F3.adonis <- adonis2(gut.F3 ~ Treatment, as(sample_data(psF.gut.F3), "data.frame"), permutations = 10000, strata = line)
-gut.F3.adonis
-#tests for differences between groups
-anova(betadisper(gut.F3, sample_data(psF.gut.F3)$Treatment))
-```
-**Using the permutation test gives no significant results. Given that DESeq2 is considered the more reliable and sensitive method according to several publications, I think we remove the permutational tests from the analyses all together. 
 
 
-###Media:
-```{r DeSeq2 Media Analysis}
-#F0/F1 Data
-psF.media01 <- subset_samples(psF.media, Generation %in% c("F0", "F1"))
-ddseM01 <- phyloseq_to_deseq2(psF.media01, ~GenTreat+0)
-ddseM01 <- estimateSizeFactors(ddseM01)
-ddseM01 <- estimateDispersionsGeneEst(ddseM01)
-dispersions(ddseM01) <- mcols(ddseM01)$dispGeneEst
-idx <- rowSums(counts(ddseM01, normalized=TRUE) >= 5 ) >= 5 # additional abundance-based filtering, must have more than five counts in more than five samples in the design
-ddseM1 <- DESeq(ddseM01[idx,], test="Wald", fitType="local")
-resultsNames(ddseM1)
-#Contrasts:
-res0M <- results(ddseM1, contrast=c("GenTreat","F0CD","F0NSD"))
-res1M <- results(ddseM1, contrast=c("GenTreat","F1CD","F1NSD"))
 
-#F2/F3 Data
-psF.media23 <- subset_samples(psF.media, Generation %in% c("F2", "F3"))
-ddseM23 <- phyloseq_to_deseq2(psF.media23, ~GenTreat+0)
-ddseM23 <- estimateSizeFactors(ddseM23)
-idx <- rowSums(counts(ddseM23, normalized=TRUE) >= 5 ) >= 5 # additional abundance-based filtering, must have more than five counts in more than five samples in the design
-ddseM2 <- DESeq(ddseM23[idx,], test="Wald", fitType="local")
-resultsNames(ddseM2)
-#Contrasts:
-resM2 <- results(ddseM2, contrast=c("GenTreat","F2CD","F2NSD"))
-resM3 <- results(ddseM2, contrast=c("GenTreat","F3CD","F3NSD"))
-
-table(resM0$padj < 0.05)
-table(resM1$padj < 0.05)
-table(resM2$padj < 0.05)
-table(resM3$padj < 0.05)
-```
-
-
-#### Media permutation tests
-```{r}
-psF.media.F0 <- tax_glom(subset_samples(psF.media, Generation=="F0"), taxrank = "D5")  
-media.F0 = UniFrac(psF.media.F0)
-#tests homogeneity of dispersion among groups (https://www.researchgate.net/post/Betadisper_and_adonis_in_R_Am_I_interpreting_my_output_correctly)
-media.F0.adonis <- adonis2(media.F0 ~ Treatment, as(sample_data(psF.media.F0), "data.frame"), permutations = 10000, strata = line)
-media.F0.adonis
-#tests for differences between groups
-anova(betadisper(media.F0, sample_data(psF.media.F0)$Treatment))
-
-
-psF.media.F1 <- tax_glom(subset_samples(psF.media, Generation=="F1"), taxrank = "D5")  
-media.F1 = UniFrac(psF.media.F1)
-#tests homogeneity of dispersion among groups
-media.F1.adonis <- adonis2(media.F1 ~ Treatment, as(sample_data(psF.media.F1), "data.frame"), permutations = 10000, strata = line)
-media.F1.adonis
-#tests for differences between groups
-anova(betadisper(media.F1, sample_data(psF.media.F1)$Treatment))
-
-psF.media.F2 <- tax_glom(subset_samples(psF.media, Generation= "F2"), taxrank = "D5")  
-media.F2 = UniFrac(psF.media.F2)
-#tests homogeneity of dispersion among groups (https://www.researchgate.net/post/Betadisper_and_adonis_in_R_Am_I_interpreting_my_output_correctly)
-media.F2.adonis <- adonis2(media.F2 ~ Treatment, as(sample_data(psF.media.F2), "data.frame"), permutations = 10000, strata = line)
-media.F2.adonis
-#tests for differences between groups
-anova(betadisper(media.F2, sample_data(psF.media.F2)$Treatment))
-plot(betadisper(media.F2, sample_data(psF.media.F2)$Treatment))
-
-psF.media.F3 <- tax_glom(subset_samples(psF.media, Generation= "F3"), taxrank = "D5")  
-media.F3 = UniFrac(psF.media.F3)
-#tests homogeneity of dispersion among groups (https://www.researchgate.net/post/Betadisper_and_adonis_in_R_Am_I_interpreting_my_output_correctly)
-media.F3.adonis <- adonis2(media.F3 ~ Treatment, as(sample_data(psF.media.F3), "data.frame"), permutations = 10000, strata = line)
-media.F3.adonis
-#tests for differences between groups
-anova(betadisper(media.F3, sample_data(psF.media.F3)$Treatment))
-plot(betadisper(media.F3, sample_data(psF.media.F3)$Treatment))
-```

@@ -452,15 +452,15 @@ for(i in unique(fat$Generation))
 #RAW TAG - N, female
 RawF1.N.Fem.TAG.p <- ggplot(subset(TaW, Generation=="F1"), aes(Antibiotic, TagWt, fill=GenTreatment)) + scale_fill_manual("Treatment", values=c("#FF9966", "#33CCFF")) + geom_boxplot(outlier.colour="gray") + theme_bw() + coord_cartesian(ylim = c(0, 22.5)) + ggtitle("F1") + xlab("") + ylab("") + theme(legend.key.size =  unit(1, "in"), legend.text = element_text(size=18), legend.title = element_text(size=18, face="bold"), title=element_text(size=18, face="bold"), axis.title=element_text(size=16), axis.text.x=element_text(size=18, vjust=0.5, face="bold"), axis.text.y=element_text(size=22), plot.title = element_text(size=28, hjust=0.5))
 RawF1.N.Fem.TAG.p <- RawF1.N.Fem.TAG.p + geom_signif(annotation="", y_position=16, xmin=0.8, xmax=1.2, tip_length = c(0.015, 0.015), textsize = 12, size=0.75) + geom_signif(annotation="***", y_position=16, xmin=1.80, xmax=2.2, tip_length = c(0.015, 0.015), textsize = 12, size=0.75) + geom_signif(annotation="***", y_position=20.75, xmin=1, xmax=2, tip_length = c(0.055, 0.055), textsize = 12, size=0.75) + geom_segment(aes(x=0.75, xend=1.25, y=19.65, yend=19.65)) + geom_segment(aes(x=1.75, xend=2.25, y=19.65, yend=19.65)) + annotate("text", 2.3, y = 17.5, label = "H1", cex=5) + annotate("text", 1.8, y = 22.25, label = "H2", cex=5)
-RawF1.N.Fem.TAG.p
+#RawF1.N.Fem.TAG.p
 
 RawF2.N.Fem.TAG.p <- ggplot(subset(TaW, Generation=="F2"), aes(Antibiotic, TagWt, fill=GenTreatment)) + scale_fill_manual(values=c("#FF9966", "#33CCFF")) + geom_boxplot(outlier.colour="gray") + theme_bw() + coord_cartesian(ylim = c(0, 22.5)) + ggtitle("F2") + xlab("") + ylab("") + theme(title=element_text(size=18, face="bold"), axis.title=element_text(size=16), axis.text.x=element_text(size=18, vjust=0.5, face="bold"), axis.text.y=element_text(size=22), plot.title = element_text(size=28, hjust=0.5))
 RawF2.N.Fem.TAG.p <- RawF2.N.Fem.TAG.p + geom_signif(annotation="", y_position=12.5, xmin=0.8, xmax=1.2, tip_length = c(0.015, 0.015), textsize = 12, size=0.75) + geom_signif(annotation="**", y_position=12.5, xmin=1.80, xmax=2.2, tip_length = c(0.015, 0.015), textsize = 12, size=0.75) + geom_signif(annotation="*", y_position=20.75, xmin=1, xmax=2, tip_length = c(0.055, 0.055), textsize = 12, size=0.75) + geom_segment(aes(x=0.75, xend=1.25, y=19.65, yend=19.65)) + geom_segment(aes(x=1.75, xend=2.25, y=19.65, yend=19.65)) + annotate("text", 2.2, y = 14, label = "H1", cex=5) + annotate("text", 1.7, y = 22.25, label = "H2", cex=5)
-RawF2.N.Fem.TAG.p
+#RawF2.N.Fem.TAG.p
 
 RawF3.N.Fem.TAG.p <- ggplot(subset(TaW, Generation=="F3"), aes(Antibiotic, TagWt, fill=GenTreatment)) + scale_fill_manual(values=c("#FF9966", "#33CCFF")) + geom_boxplot(outlier.colour="gray") + theme_bw() + coord_cartesian(ylim = c(0, 22.5)) + ggtitle("F3") + xlab("") + ylab("") + theme(title=element_text(size=18, face="bold"), axis.title=element_text(size=16), axis.text.x=element_text(size=18, vjust=0.5, face="bold"), axis.text.y=element_text(size=22), plot.title = element_text(size=28, hjust=0.5))
 RawF3.N.Fem.TAG.p <- RawF3.N.Fem.TAG.p + geom_signif(annotation="", y_position=12.5, xmin=0.8, xmax=1.2, tip_length = c(0.015, 0.015), textsize = 12, size=0.75) + geom_signif(annotation="***", y_position=12.5, xmin=1.80, xmax=2.2, tip_length = c(0.015, 0.015), textsize = 12, size=0.75) + geom_signif(annotation="***", y_position=20.75, xmin=1, xmax=2, tip_length = c(0.055, 0.055), textsize = 12, size=0.75) + geom_segment(aes(x=0.75, xend=1.25, y=19.65, yend=19.65)) + geom_segment(aes(x=1.75, xend=2.25, y=19.65, yend=19.65)) + annotate("text", 2.3, y = 14, label = "H1", cex=5) + annotate("text", 1.8, y = 22.25, label = "H2", cex=5)
-RawF3.N.Fem.TAG.p
+#RawF3.N.Fem.TAG.p
 
 g_legend<-function(a.gplot){
   tmp <- ggplot_gtable(ggplot_build(a.gplot))
@@ -469,9 +469,13 @@ g_legend<-function(a.gplot){
   return(legend)}
 mylegend<-g_legend(RawF1.N.Fem.TAG.p)
 
-GenNFTag <- grid.arrange(arrangeGrob(RawF1.N.Fem.TAG.p + theme(legend.position="none"), RawF2.N.Fem.TAG.p + theme(legend.position="none"), RawF3.N.Fem.TAG.p + theme(legend.position="none"), ncol=3, top=textGrob("Triglycerides", gp = gpar(fontface=2, fontsize=40)), bottom=textGrob("Generations Following Horizontal Transmission", gp = gpar(fontface=1, fontsize=25)), left=textGrob("Triglycerides/Weight (µg)", rot=90, gp = gpar(fontface=1, fontsize=35))), mylegend, ncol=2, widths=c(10,2))
+# GenNFTag <- grid.arrange(arrangeGrob(RawF1.N.Fem.TAG.p + theme(legend.position="none"), RawF2.N.Fem.TAG.p + theme(legend.position="none"), RawF3.N.Fem.TAG.p + theme(legend.position="none"), ncol=3, top=textGrob("Triglycerides", gp = gpar(fontface=2, fontsize=40)), bottom=textGrob("Generations Following Horizontal Transmission", gp = gpar(fontface=1, fontsize=25)), left=textGrob("Triglycerides/Weight (µg)", rot=90, gp = gpar(fontface=1, fontsize=35))), mylegend, ncol=2, widths=c(10,2))
+# 
+# ggsave("Triglycerides.pdf", GenNFTag, device="pdf", width = 20, height = 7, units = "in")
 
-ggsave("Triglycerides.pdf", GenNFTag, device="pdf", width = 20, height = 7, units = "in")
+GenNFTag <- grid.arrange(arrangeGrob(RawF1.N.Fem.TAG.p + theme(legend.position="none"), RawF2.N.Fem.TAG.p + theme(legend.position="none"), RawF3.N.Fem.TAG.p + theme(legend.position="none"), ncol=3, top=textGrob("Triglycerides", gp = gpar(fontface=2, fontsize=20)), bottom=textGrob("Generations Following Horizontal Transmission", gp = gpar(fontface=1, fontsize=12)), left=textGrob("Triglycerides/Weight (µg)", rot=90, gp = gpar(fontface=1, fontsize=15))), mylegend, ncol=2, widths=c(10,2))
+
+ggsave("Triglycerides.pdf", GenNFTag, device="pdf", width = 10, height = 3.5, units = "in")
 
 ``` 
   
@@ -662,7 +666,7 @@ MicrobiomeDF <- bind_rows(as.data.frame(res0)[,c("genus.D5", "log2FoldChange", "
           .id = "generations") %>% 
   mutate(generations = as.numeric(generations) - 1, sig = ifelse(padj<0.05, 1, .5)) 
 
-MicrobeTrendsPlot <- ggplot(MicrobiomeDF, aes(generations, log2FoldChange, color = genus.D5, alpha = sig, group = genus.D5)) + geom_point(aes(size=5)) + geom_line(alpha=0.5) + guides(size = "none", alpha = "none") + ylab("log2FoldChange") + xlab("")  + ggtitle("Bacteria Community Changes") + scale_color_discrete(name="Genera") + scale_x_continuous(labels=c("0" = "F0", "1" = "F1", "2" = "F2",  "3" = "F3")) + theme(axis.text=element_text(size=12), axis.title = element_text(size=14,face="bold"), plot.title = element_text(size = 20, face = "bold", hjust = 0.5), legend.text = element_text(size=12), legend.position="top") + annotate("text", x=2.75, y=-7, label= "a", size=10) 
+MicrobeTrendsPlot <- ggplot(MicrobiomeDF, aes(generations, log2FoldChange, color = genus.D5, alpha = sig, group = genus.D5)) + geom_point(aes(size=5)) + geom_line(alpha=0.5) + guides(size = "none", alpha = "none") + ylab("log2FoldChange") + xlab("")  + ggtitle("Bacteria Community Shifts") + scale_color_discrete(name="Genera") + scale_x_continuous(labels=c("0" = "F0", "1" = "F1", "2" = "F2",  "3" = "F3")) + theme(axis.text=element_text(size=12), axis.title = element_text(size=14,face="bold"), plot.title = element_text(size = 20, face = "bold", hjust = 0.5), legend.text = element_text(size=12), legend.position="top") + annotate("text", x=2.75, y=-7, label= "a", size=10) 
 #MicrobeTrendsPlot
 
 g_legend<-function(a.gplot){
@@ -715,5 +719,38 @@ TrendsPlot <- grid.arrange(arrangeGrob(
 
 ggsave("MicrobeTAG Trends Plot.pdf", TrendsPlot, device="pdf", width = 10, height = 5, units = "in")
 ```
+  
+  
+  
+   
+## Are any bacteria associated with TAGs across generations?
 
+```{r, Bacteria TAG associations, warning=FALSE}
+Pdat <- read.csv("https://raw.githubusercontent.com/cemborski/Horizontal-transmission-of-altered-phenotypes/master/PhenotypeData.csv") 
 
+#Create dataframe
+phenotypes <- Pdat %>% filter(! grepl("\\+", Treatment) & Sex == "female" & ! grepl("F0", Generation)) %>% mutate(Treatment = factor(Treatment, labels = c("C-"="C", "N-"="N"))) %>% dplyr::select(Generation, Treatment, Sample, Fat.Weight, TAG) %>% mutate (TAGwt = TAG/Fat.Weight)
+MicrobeDF <- psF.gut@sam_data %>% mutate(Treatment = factor(Treatment, labels = c("CD"="C", "NSD"="N")))
+phenotypes1 <- phenotypes %>% left_join(MicrobeDF, ., by = c("Generation", "Treatment", "SampleNumber" = "Sample"))
+psF.gut@sam_data$TAGwt <- phenotypes1$TAGwt
+psF.gut.Met <- subset_samples(psF.gut,  Generation %in% c("F1", "F2", "F3"))
+  
+#Run Analysis
+ddseMet <- phyloseq_to_deseq2(psF.gut.Met, ~ TAGwt )
+ddseMet <- estimateSizeFactors(ddseMet)
+idx <- rowSums(counts(ddseMet, normalized=TRUE) >= 5 ) >= 5
+ddseMet2 <- DESeq(ddseMet[idx,], test="Wald", fitType="local")
+resultsNames(ddseMet2)
+table(results(ddseMet2, name="TAGwt")$padj<0.05)
+(tagsig <- results(ddseMet2, name="TAGwt")[results(ddseMet2, name="TAGwt")$padj<0.05,])
+tax_table(psF.gut)[rownames(tagsig),6]
+
+#Plot significant associations between OTUs and TAGWt
+metCounts <- data.table::rbindlist(lapply(1:3, function(x) {  
+  plotCounts(ddseMet, gene=rownames(tagsig)[x], intgroup="TAGwt",returnData=TRUE) %>% mutate(taxon = as.vector(gsub("D_5__","", tax_table(ps3)[rownames(tagsig)[x],6])), Generation = colData(ddseMet2)$Generation, Treatment = colData(ddseMet2)$Treatment) })) 
+
+TagWtByOTUplot <- metCounts %>% 
+  ggplot(aes(count, TAGwt, color=Generation, shape=Treatment )) + geom_point() + scale_x_log10(limit=c(1,NA))+ facet_grid(taxon~.) + scale_shape_discrete(name="Treatment", labels=c("C", "N")) + stat_smooth(method="lm",aes(group=0))
+TagWtByOTUplot 
+ggsave("AssociationTagWtByOTUplot.pdf", TagWtByOTUplot, device="pdf", width = 7, height = 7, units = "in")
+```
